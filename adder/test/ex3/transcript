@@ -1,0 +1,24 @@
+> cat test/ex3/ex.snek
+(sub1 (sub1 (sub1 (sub1 10))))
+
+> make test/ex3/ex.run
+cargo run -- test/ex3/ex.snek test/ex3/ex.s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `target/debug/adder test/ex3/ex.snek test/ex3/ex.s`
+nasm -f elf64 test/ex3/ex.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/ex3/ex.run
+
+> cat test/ex3/ex.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 10
+sub rax, 1
+sub rax, 1
+sub rax, 1
+sub rax, 1
+  ret
+
+> ./test/ex3/ex.run
+6
