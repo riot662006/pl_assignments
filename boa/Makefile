@@ -1,28 +1,75 @@
 # Makefile for Boa Compiler
-# Replace 'elf64' with 'macho64' on macOS
+# Use -f macho64 instead of elf64 on macOS
 
-# Pattern rule to compile .snek files to .s assembly files
+.SECONDARY: # Don't delete intermediate .s files until we're done with them
+
+# -----------------------------
+# Config: choose test directory
+# -----------------------------
+# Default folder is "test". Override like:
+#   make transcript DIR=test/ex_010
+DIR ?= test
+
+# Top-level only in DIR (no recursion)
+SNEK_FILES := $(wildcard $(DIR)/*.snek)
+S_FILES    := $(patsubst %.snek,%.s,$(SNEK_FILES))
+RUN_FILES  := $(patsubst %.snek,%.run,$(SNEK_FILES))
+
+# ---------------------------------------------
+# Compilation rules (works for any subfolder under test/)
+# ---------------------------------------------
+
+# .snek → .s
 test/%.s: test/%.snek src/main.rs
-	cargo run -- $< test/$*.s
+	cargo run -- $< $@
 
-# Pattern rule to assemble .s files and link into executables
-# Change -f elf64 to -f macho64 on macOS
+# .s → .run
 test/%.run: test/%.s runtime/start.rs
-	nasm -f elf64 test/$*.s -o runtime/our_code.o
+	nasm -f elf64 $< -o runtime/our_code.o
 	ar rcs runtime/libour_code.a runtime/our_code.o
-	rustc -L runtime/ runtime/start.rs -o test/$*.run
+	rustc -L runtime/ runtime/start.rs -o $@
 
-# Clean build artifacts
+# ---------------------------------------------
+# Run all tests in DIR normally
+# ---------------------------------------------
+.PHONY: test
+test: $(RUN_FILES)
+	@echo "Running tests in $(DIR)..."
+	@for f in $(RUN_FILES); do ./$$f; done
+
+# ---------------------------------------------
+# Unified transcript for all tests in DIR
+# (keeps .s until after we cat it, then deletes .s and .run)
+# ---------------------------------------------
+.PHONY: transcript
+transcript:
+	@set -e; \
+	if [ -z "$(SNEK_FILES)" ]; then \
+	  echo "No .snek files found in '$(DIR)'"; \
+	  exit 1; \
+	fi; \
+	for f in $(SNEK_FILES); do \
+	  echo "> cat $$f"; \
+	  cat "$$f"; \
+	  echo; \
+	  run="$${f%.snek}.run"; \
+	  asm="$${f%.snek}.s"; \
+	  echo "> make $$run"; \
+	  $(MAKE) "$$run"; \
+	  echo; \
+	  echo "> cat $$asm"; \
+	  cat "$$asm"; \
+	  echo; \
+	  echo "> ./$$run"; \
+	  ./$$run; \
+	  rm -f "$$asm" "$$run"; \
+	  echo; echo; \
+	done
+
+# ---------------------------------------------
+# Clean
+# ---------------------------------------------
+.PHONY: clean
 clean:
 	cargo clean
-	rm -f test/*.s test/*.run runtime/*.o runtime/*.a
-
-# Run all tests
-test: test/37.run test/add.run test/negate.run test/complex.run
-	@echo "Running tests..."
-	@./test/37.run
-	@./test/add.run
-	@./test/negate.run
-	@./test/complex.run
-
-.PHONY: clean test
+	rm -f test/*.s test/*.run test/*/*.s test/*/*.run runtime/*.o runtime/*.a
