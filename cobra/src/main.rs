@@ -32,6 +32,7 @@ enum BinOp {
     Greater,
     LessEqual,
     GreaterEqual,
+    Equal,
 }
 
 // Task 2: Extend Parser
@@ -50,6 +51,7 @@ enum BinOp {
 //   | (> <expr> <expr>)
 //   | (<= <expr> <expr>)
 //   | (>= <expr> <expr>)
+//   | (= <expr> <expr>)
 
 // <identifier> := [a-zA-Z][a-zA-Z0-9]*  (but not reserved words)
 
@@ -73,6 +75,7 @@ fn parse_expr(s: &Sexp) -> Expr {
                 || name == ">"
                 || name == "<="
                 || name == ">="
+                || name == "="
             {
                 panic!("Invalid use of keyword as identifier: {}", name);
             }
@@ -138,6 +141,10 @@ fn parse_expr(s: &Sexp) -> Expr {
             [Sexp::Atom(S(op)), e1, e2] if op == ">=" => {
                 Expr::BinOp(BinOp::GreaterEqual, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
             },
+            // (= <expr> <expr>)
+            [Sexp::Atom(S(op)), e1, e2] if op == "=" => {
+                Expr::BinOp(BinOp::Equal, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
+            },
 
             _ => panic!("Invalid expression: {:?}", vec),
         },
@@ -152,6 +159,16 @@ fn check_number(reg: &str) -> String {
         "mov rcx, {reg}
   and rcx, 1
   cmp rcx, 0
+  jne error"
+    )
+}
+
+fn check_same_type(stack_offset: i32) -> String {
+    format!(
+        "mov rbx, [rsp - {stack_offset}]
+  xor rbx, rax
+  and rbx, 1
+  cmp rbx, 0
   jne error"
     )
 }
@@ -226,19 +243,19 @@ fn compile_expr(
             
             // Evaluate left operand
             instrs.push(compile_expr(e1, env, stack_offset, label_counter));
-            instrs.push(check_number("rax"));
             
             // Save left operand on stack
             instrs.push(format!("mov [rsp - {}], rax", stack_offset));
             
             // Evaluate right operand
             instrs.push(compile_expr(e2, env, stack_offset + 8, label_counter));
-            instrs.push(check_number("rax"));
             
             // Perform operation
             match op {
                 BinOp::Plus | BinOp::Minus | BinOp::Times => {
+                    instrs.push(check_number("rax"));
                     instrs.push(format!("mov rbx, [rsp - {}]", stack_offset));
+                    instrs.push(check_number("rbx"));
                     instrs.push("sar rax, 1".to_string());
                     instrs.push("sar rbx, 1".to_string());
 
@@ -259,6 +276,9 @@ fn compile_expr(
                     instrs.push("sal rax, 1".to_string());
                 }
                 BinOp::Less | BinOp::Greater | BinOp::LessEqual | BinOp::GreaterEqual => {
+                    instrs.push(check_number("rax"));
+                    instrs.push(format!("mov rbx, [rsp - {}]", stack_offset));
+                    instrs.push(check_number("rbx"));
                     let true_label = new_label(label_counter, "cmp_true");
                     let done_label = new_label(label_counter, "cmp_done");
                     instrs.push(format!("cmp [rsp - {}], rax", stack_offset));
@@ -272,6 +292,18 @@ fn compile_expr(
                     };
 
                     instrs.push(format!("{} {}", jump, true_label));
+                    instrs.push("mov rax, 1".to_string());
+                    instrs.push(format!("jmp {}", done_label));
+                    instrs.push(format!("{}:", true_label));
+                    instrs.push("mov rax, 3".to_string());
+                    instrs.push(format!("{}:", done_label));
+                }
+                BinOp::Equal => {
+                    let true_label = new_label(label_counter, "eq_true");
+                    let done_label = new_label(label_counter, "eq_done");
+                    instrs.push(check_same_type(stack_offset));
+                    instrs.push(format!("cmp [rsp - {}], rax", stack_offset));
+                    instrs.push(format!("je {}", true_label));
                     instrs.push("mov rax, 1".to_string());
                     instrs.push(format!("jmp {}", done_label));
                     instrs.push(format!("{}:", true_label));
