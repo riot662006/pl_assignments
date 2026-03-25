@@ -28,6 +28,10 @@ enum BinOp {
     Plus,
     Minus,
     Times,
+    Less,
+    Greater,
+    LessEqual,
+    GreaterEqual,
 }
 
 // Task 2: Extend Parser
@@ -42,6 +46,10 @@ enum BinOp {
 //   | (+ <expr> <expr>)
 //   | (- <expr> <expr>)
 //   | (* <expr> <expr>)
+//   | (< <expr> <expr>)
+//   | (> <expr> <expr>)
+//   | (<= <expr> <expr>)
+//   | (>= <expr> <expr>)
 
 // <identifier> := [a-zA-Z][a-zA-Z0-9]*  (but not reserved words)
 
@@ -57,7 +65,15 @@ fn parse_expr(s: &Sexp) -> Expr {
             if name == "false" {
                 return Expr::Bool(false);
             }
-            if name == "let" || name == "add1" || name == "sub1" || name == "negate" {
+            if name == "let"
+                || name == "add1"
+                || name == "sub1"
+                || name == "negate"
+                || name == "<"
+                || name == ">"
+                || name == "<="
+                || name == ">="
+            {
                 panic!("Invalid use of keyword as identifier: {}", name);
             }
             Expr::Var(name.to_string())
@@ -106,6 +122,22 @@ fn parse_expr(s: &Sexp) -> Expr {
             [Sexp::Atom(S(op)), e1, e2] if op == "*" => {
                 Expr::BinOp(BinOp::Times, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
             },
+            // (< <expr> <expr>)
+            [Sexp::Atom(S(op)), e1, e2] if op == "<" => {
+                Expr::BinOp(BinOp::Less, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
+            },
+            // (> <expr> <expr>)
+            [Sexp::Atom(S(op)), e1, e2] if op == ">" => {
+                Expr::BinOp(BinOp::Greater, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
+            },
+            // (<= <expr> <expr>)
+            [Sexp::Atom(S(op)), e1, e2] if op == "<=" => {
+                Expr::BinOp(BinOp::LessEqual, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
+            },
+            // (>= <expr> <expr>)
+            [Sexp::Atom(S(op)), e1, e2] if op == ">=" => {
+                Expr::BinOp(BinOp::GreaterEqual, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
+            },
 
             _ => panic!("Invalid expression: {:?}", vec),
         },
@@ -124,8 +156,18 @@ fn check_number(reg: &str) -> String {
     )
 }
 
+fn new_label(label_counter: &mut i32, name: &str) -> String {
+    *label_counter += 1;
+    format!("{}_{}", name, label_counter)
+}
+
 /// Task 3: Implement Code Generation
-fn compile_expr(e: &Expr, env: &HashMap<String, i32>, stack_offset: i32) -> String {
+fn compile_expr(
+    e: &Expr,
+    env: &HashMap<String, i32>,
+    stack_offset: i32,
+    label_counter: &mut i32,
+) -> String {
     match e {
         Expr::Num(n) => {
             format!("mov rax, {}\nsal rax, 1", n)
@@ -151,7 +193,7 @@ fn compile_expr(e: &Expr, env: &HashMap<String, i32>, stack_offset: i32) -> Stri
                 }
                 
                 // Compile the expression
-                instrs.push(compile_expr(expr, &env, current_offset));
+                instrs.push(compile_expr(expr, &env, current_offset, label_counter));
 
                 // Store the result in the environment
                 instrs.push(format!("mov [rsp - {}], rax", current_offset));
@@ -163,13 +205,13 @@ fn compile_expr(e: &Expr, env: &HashMap<String, i32>, stack_offset: i32) -> Stri
             }
 
             // Compile the body
-            instrs.push(compile_expr(body, &new_env, current_offset));
+            instrs.push(compile_expr(body, &new_env, current_offset, label_counter));
 
             instrs.join("\n  ")
         },
 
         Expr::UnOp(op, subexpr) => {
-            let expr_instrs = compile_expr(subexpr, env, stack_offset);
+            let expr_instrs = compile_expr(subexpr, env, stack_offset, label_counter);
             let check_instrs = check_number("rax");
             let op_instr = match op {
                 UnOp::Add1 => "add rax, 2",
@@ -183,34 +225,61 @@ fn compile_expr(e: &Expr, env: &HashMap<String, i32>, stack_offset: i32) -> Stri
             let mut instrs = Vec::new();
             
             // Evaluate left operand
-            instrs.push(compile_expr(e1, env, stack_offset));
+            instrs.push(compile_expr(e1, env, stack_offset, label_counter));
             instrs.push(check_number("rax"));
-            instrs.push("sar rax, 1".to_string());
             
             // Save left operand on stack
             instrs.push(format!("mov [rsp - {}], rax", stack_offset));
             
             // Evaluate right operand
-            instrs.push(compile_expr(e2, env, stack_offset + 8));
+            instrs.push(compile_expr(e2, env, stack_offset + 8, label_counter));
             instrs.push(check_number("rax"));
-            instrs.push("sar rax, 1".to_string());
             
             // Perform operation
             match op {
-                BinOp::Plus => {
-                    instrs.push(format!("add rax, [rsp - {}]", stack_offset));
-                }
-                BinOp::Minus => {
+                BinOp::Plus | BinOp::Minus | BinOp::Times => {
                     instrs.push(format!("mov rbx, [rsp - {}]", stack_offset));
-                    instrs.push("sub rbx, rax".to_string());
-                    instrs.push("mov rax, rbx".to_string());
+                    instrs.push("sar rax, 1".to_string());
+                    instrs.push("sar rbx, 1".to_string());
+
+                    match op {
+                        BinOp::Plus => {
+                            instrs.push("add rax, rbx".to_string());
+                        }
+                        BinOp::Minus => {
+                            instrs.push("sub rbx, rax".to_string());
+                            instrs.push("mov rax, rbx".to_string());
+                        }
+                        BinOp::Times => {
+                            instrs.push("imul rax, rbx".to_string());
+                        }
+                        _ => unreachable!(),
+                    }
+
+                    instrs.push("sal rax, 1".to_string());
                 }
-                BinOp::Times => {
-                    instrs.push(format!("imul rax, [rsp - {}]", stack_offset));
+                BinOp::Less | BinOp::Greater | BinOp::LessEqual | BinOp::GreaterEqual => {
+                    let true_label = new_label(label_counter, "cmp_true");
+                    let done_label = new_label(label_counter, "cmp_done");
+                    instrs.push(format!("cmp [rsp - {}], rax", stack_offset));
+
+                    let jump = match op {
+                        BinOp::Less => "jl",
+                        BinOp::Greater => "jg",
+                        BinOp::LessEqual => "jle",
+                        BinOp::GreaterEqual => "jge",
+                        _ => unreachable!(),
+                    };
+
+                    instrs.push(format!("{} {}", jump, true_label));
+                    instrs.push("mov rax, 1".to_string());
+                    instrs.push(format!("jmp {}", done_label));
+                    instrs.push(format!("{}:", true_label));
+                    instrs.push("mov rax, 3".to_string());
+                    instrs.push(format!("{}:", done_label));
                 }
             }
-            
-            instrs.push("sal rax, 1".to_string()); // Shift left to re-tag as number
+
             instrs.join("\n  ")
         }
     }
@@ -242,9 +311,10 @@ fn main() -> std::io::Result<()> {
 
     // Start with empty environment and offset 8
     let env = HashMap::new();
+    let mut label_counter = 0;
     
     // Generate assembly instructions
-    let instrs = compile_expr(&expr, &env, 8);
+    let instrs = compile_expr(&expr, &env, 8, &mut label_counter);
     
     // Wrap instructions in assembly program template
     let asm_program = format!(

@@ -1,1 +1,5 @@
 **/target/
+
+# all .run and .s files
+**/*.run
+**/*.s
