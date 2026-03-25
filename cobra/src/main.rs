@@ -21,6 +21,8 @@ enum UnOp {
     Add1,
     Sub1,
     Negate,
+    IsNum,
+    IsBool,
 }
 
 #[derive(Debug, Clone)]
@@ -44,6 +46,8 @@ enum BinOp {
 //   | (add1 <expr>)
 //   | (sub1 <expr>)
 //   | (negate <expr>)
+//   | (isnum <expr>)
+//   | (isbool <expr>)
 //   | (+ <expr> <expr>)
 //   | (- <expr> <expr>)
 //   | (* <expr> <expr>)
@@ -71,6 +75,8 @@ fn parse_expr(s: &Sexp) -> Expr {
                 || name == "add1"
                 || name == "sub1"
                 || name == "negate"
+                || name == "isnum"
+                || name == "isbool"
                 || name == "<"
                 || name == ">"
                 || name == "<="
@@ -111,6 +117,14 @@ fn parse_expr(s: &Sexp) -> Expr {
             // (negate <expr>)
             [Sexp::Atom(S(op)), e] if op == "negate" => {
                 Expr::UnOp(UnOp::Negate, Box::new(parse_expr(e)))
+            },
+            // (isnum <expr>)
+            [Sexp::Atom(S(op)), e] if op == "isnum" => {
+                Expr::UnOp(UnOp::IsNum, Box::new(parse_expr(e)))
+            },
+            // (isbool <expr>)
+            [Sexp::Atom(S(op)), e] if op == "isbool" => {
+                Expr::UnOp(UnOp::IsBool, Box::new(parse_expr(e)))
             },
 
             // (+ <expr> <expr>)
@@ -229,13 +243,34 @@ fn compile_expr(
 
         Expr::UnOp(op, subexpr) => {
             let expr_instrs = compile_expr(subexpr, env, stack_offset, label_counter);
-            let check_instrs = check_number("rax");
-            let op_instr = match op {
-                UnOp::Add1 => "add rax, 2",
-                UnOp::Sub1 => "sub rax, 2",
-                UnOp::Negate => "imul rax, -1",
-            };
-            format!("{}\n{}\n{}", expr_instrs, check_instrs, op_instr)
+            match op {
+                UnOp::Add1 | UnOp::Sub1 | UnOp::Negate => {
+                    let check_instrs = check_number("rax");
+                    let op_instr = match op {
+                        UnOp::Add1 => "add rax, 2",
+                        UnOp::Sub1 => "sub rax, 2",
+                        UnOp::Negate => "imul rax, -1",
+                        _ => unreachable!(),
+                    };
+                    format!("{}\n{}\n{}", expr_instrs, check_instrs, op_instr)
+                }
+                UnOp::IsNum => {
+                    let true_label = new_label(label_counter, "isnum_true");
+                    let done_label = new_label(label_counter, "isnum_done");
+                    format!(
+                        "{}\nmov rbx, rax\nand rbx, 1\ncmp rbx, 0\nje {}\nmov rax, 1\njmp {}\n{}:\nmov rax, 3\n{}:",
+                        expr_instrs, true_label, done_label, true_label, done_label
+                    )
+                }
+                UnOp::IsBool => {
+                    let true_label = new_label(label_counter, "isbool_true");
+                    let done_label = new_label(label_counter, "isbool_done");
+                    format!(
+                        "{}\ncmp rax, 1\nje {}\ncmp rax, 3\nje {}\nmov rax, 1\njmp {}\n{}:\nmov rax, 3\n{}:",
+                        expr_instrs, true_label, true_label, done_label, true_label, done_label
+                    )
+                }
+            }
         },
 
         Expr::BinOp(op, e1, e2) => {
