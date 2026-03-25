@@ -1,0 +1,440 @@
+> cat test/my_test_cases/001.snek
+(let ((x 4)) (+ x 12))
+> make test/my_test_cases/001.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/001.snek test/my_test_cases/001.s
+nasm -f elf64 test/my_test_cases/001.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/001.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/001.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 4
+  mov [rsp - 8], rax
+  mov rax, [rsp - 8]
+  mov [rsp - 16], rax
+  mov rax, 12
+  add rax, [rsp - 16]
+  ret
+
+> ./test/my_test_cases/001.run
+16
+
+
+> cat test/my_test_cases/002.snek
+42
+> make test/my_test_cases/002.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/002.snek test/my_test_cases/002.s
+nasm -f elf64 test/my_test_cases/002.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/002.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/002.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 42
+  ret
+
+> ./test/my_test_cases/002.run
+42
+
+
+> cat test/my_test_cases/003.snek
+(+ 10 5)
+> make test/my_test_cases/003.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/003.snek test/my_test_cases/003.s
+nasm -f elf64 test/my_test_cases/003.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/003.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/003.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 10
+  mov [rsp - 8], rax
+  mov rax, 5
+  add rax, [rsp - 8]
+  ret
+
+> ./test/my_test_cases/003.run
+15
+
+
+> cat test/my_test_cases/004.snek
+(- 10 5)
+> make test/my_test_cases/004.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/004.snek test/my_test_cases/004.s
+nasm -f elf64 test/my_test_cases/004.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/004.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/004.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 10
+  mov [rsp - 8], rax
+  mov rax, 5
+  mov rbx, [rsp - 8]
+  sub rbx, rax
+  mov rax, rbx
+  ret
+
+> ./test/my_test_cases/004.run
+5
+
+
+> cat test/my_test_cases/005.snek
+(* 6 7)
+> make test/my_test_cases/005.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/005.snek test/my_test_cases/005.s
+nasm -f elf64 test/my_test_cases/005.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/005.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/005.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 6
+  mov [rsp - 8], rax
+  mov rax, 7
+  imul rax, [rsp - 8]
+  ret
+
+> ./test/my_test_cases/005.run
+42
+
+
+> cat test/my_test_cases/006.snek
+(+ 20 4)
+> make test/my_test_cases/006.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/006.snek test/my_test_cases/006.s
+nasm -f elf64 test/my_test_cases/006.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/006.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/006.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 20
+  mov [rsp - 8], rax
+  mov rax, 4
+  add rax, [rsp - 8]
+  ret
+
+> ./test/my_test_cases/006.run
+24
+
+
+> cat test/my_test_cases/007.snek
+(let ((x 3)) (* x x))
+> make test/my_test_cases/007.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/007.snek test/my_test_cases/007.s
+nasm -f elf64 test/my_test_cases/007.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/007.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/007.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 3
+  mov [rsp - 8], rax
+  mov rax, [rsp - 8]
+  mov [rsp - 16], rax
+  mov rax, [rsp - 8]
+  imul rax, [rsp - 16]
+  ret
+
+> ./test/my_test_cases/007.run
+9
+
+
+> cat test/my_test_cases/008.snek
+(let ((a 1) (b 2) (c 3)) (+ a (* b c)))
+> make test/my_test_cases/008.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/008.snek test/my_test_cases/008.s
+nasm -f elf64 test/my_test_cases/008.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/008.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/008.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 1
+  mov [rsp - 8], rax
+  mov rax, 2
+  mov [rsp - 16], rax
+  mov rax, 3
+  mov [rsp - 24], rax
+  mov rax, [rsp - 8]
+  mov [rsp - 32], rax
+  mov rax, [rsp - 16]
+  mov [rsp - 40], rax
+  mov rax, [rsp - 24]
+  imul rax, [rsp - 40]
+  add rax, [rsp - 32]
+  ret
+
+> ./test/my_test_cases/008.run
+7
+
+
+> cat test/my_test_cases/009.snek
+(let ((x 10)) (let ((x 5) (y (+ x 2))) (- x y)))
+> make test/my_test_cases/009.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/009.snek test/my_test_cases/009.s
+nasm -f elf64 test/my_test_cases/009.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/009.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/009.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 10
+  mov [rsp - 8], rax
+  mov rax, 5
+  mov [rsp - 16], rax
+  mov rax, [rsp - 8]
+  mov [rsp - 24], rax
+  mov rax, 2
+  add rax, [rsp - 24]
+  mov [rsp - 24], rax
+  mov rax, [rsp - 16]
+  mov [rsp - 32], rax
+  mov rax, [rsp - 24]
+  mov rbx, [rsp - 32]
+  sub rbx, rax
+  mov rax, rbx
+  ret
+
+> ./test/my_test_cases/009.run
+-7
+
+
+> cat test/my_test_cases/010.snek
+(+ (- 5 2) (* 2 3))
+> make test/my_test_cases/010.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/010.snek test/my_test_cases/010.s
+nasm -f elf64 test/my_test_cases/010.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/010.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/010.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 5
+  mov [rsp - 8], rax
+  mov rax, 2
+  mov rbx, [rsp - 8]
+  sub rbx, rax
+  mov rax, rbx
+  mov [rsp - 8], rax
+  mov rax, 2
+  mov [rsp - 16], rax
+  mov rax, 3
+  imul rax, [rsp - 16]
+  add rax, [rsp - 8]
+  ret
+
+> ./test/my_test_cases/010.run
+9
+
+
+> cat test/my_test_cases/011.snek
+(let ((x (- 0 5))) (+ x 10))
+> make test/my_test_cases/011.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/011.snek test/my_test_cases/011.s
+nasm -f elf64 test/my_test_cases/011.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/011.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/011.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 0
+  mov [rsp - 8], rax
+  mov rax, 5
+  mov rbx, [rsp - 8]
+  sub rbx, rax
+  mov rax, rbx
+  mov [rsp - 8], rax
+  mov rax, [rsp - 8]
+  mov [rsp - 16], rax
+  mov rax, 10
+  add rax, [rsp - 16]
+  ret
+
+> ./test/my_test_cases/011.run
+5
+
+
+> cat test/my_test_cases/012.snek
+(let ((x 1)) (let ((y 2)) (let ((z 3)) (+ x (+ y z)))))
+> make test/my_test_cases/012.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/012.snek test/my_test_cases/012.s
+nasm -f elf64 test/my_test_cases/012.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/012.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/012.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 1
+  mov [rsp - 8], rax
+  mov rax, 2
+  mov [rsp - 16], rax
+  mov rax, 3
+  mov [rsp - 24], rax
+  mov rax, [rsp - 8]
+  mov [rsp - 32], rax
+  mov rax, [rsp - 16]
+  mov [rsp - 40], rax
+  mov rax, [rsp - 24]
+  add rax, [rsp - 40]
+  add rax, [rsp - 32]
+  ret
+
+> ./test/my_test_cases/012.run
+6
+
+
+> cat test/my_test_cases/013.snek
+(- (* 5 2) 3)
+> make test/my_test_cases/013.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/013.snek test/my_test_cases/013.s
+nasm -f elf64 test/my_test_cases/013.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/013.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/013.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 5
+  mov [rsp - 8], rax
+  mov rax, 2
+  imul rax, [rsp - 8]
+  mov [rsp - 8], rax
+  mov rax, 3
+  mov rbx, [rsp - 8]
+  sub rbx, rax
+  mov rax, rbx
+  ret
+
+> ./test/my_test_cases/013.run
+7
+
+
+> cat test/my_test_cases/014.snek
+(let ((x 7)) (let ((y (* x 2))) (let ((z (+ y 1))) (- z 3))))
+> make test/my_test_cases/014.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/014.snek test/my_test_cases/014.s
+nasm -f elf64 test/my_test_cases/014.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/014.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/014.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 7
+  mov [rsp - 8], rax
+  mov rax, [rsp - 8]
+  mov [rsp - 16], rax
+  mov rax, 2
+  imul rax, [rsp - 16]
+  mov [rsp - 16], rax
+  mov rax, [rsp - 16]
+  mov [rsp - 24], rax
+  mov rax, 1
+  add rax, [rsp - 24]
+  mov [rsp - 24], rax
+  mov rax, [rsp - 24]
+  mov [rsp - 32], rax
+  mov rax, 3
+  mov rbx, [rsp - 32]
+  sub rbx, rax
+  mov rax, rbx
+  ret
+
+> ./test/my_test_cases/014.run
+12
+
+
+> cat test/my_test_cases/015.snek
+(let ((x 0)) (let ((y 1)) (let ((z 2)) (let ((w 3)) (+ x (+ y (+ z w)))))))
+> make test/my_test_cases/015.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+cargo run -- test/my_test_cases/015.snek test/my_test_cases/015.s
+nasm -f elf64 test/my_test_cases/015.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/015.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/boa'
+
+> cat test/my_test_cases/015.s
+section .text
+global our_code_starts_here
+our_code_starts_here:
+  mov rax, 0
+  mov [rsp - 8], rax
+  mov rax, 1
+  mov [rsp - 16], rax
+  mov rax, 2
+  mov [rsp - 24], rax
+  mov rax, 3
+  mov [rsp - 32], rax
+  mov rax, [rsp - 8]
+  mov [rsp - 40], rax
+  mov rax, [rsp - 16]
+  mov [rsp - 48], rax
+  mov rax, [rsp - 24]
+  mov [rsp - 56], rax
+  mov rax, [rsp - 32]
+  add rax, [rsp - 56]
+  add rax, [rsp - 48]
+  add rax, [rsp - 40]
+  ret
+
+> ./test/my_test_cases/015.run
+6
+
+
