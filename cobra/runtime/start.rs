@@ -9,9 +9,15 @@ extern "C" {
     fn our_code_starts_here() -> i64;
 }
 
+#[no_mangle]
+extern "C" fn snek_error(_errcode: i64) -> ! {
+    eprintln!("invalid argument");
+    std::process::exit(1);
+}
+
 fn main() {
     let i: i64 = unsafe {
         our_code_starts_here()
     };
-    println!("{i}");
+    println!("{}", i >> 1);
 }

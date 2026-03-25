@@ -108,10 +108,21 @@ fn parse_expr(s: &Sexp) -> Expr {
     }
 }
 
+fn check_number(reg: &str) -> String {
+    format!(
+        "mov rcx, {reg}
+  and rcx, 1
+  cmp rcx, 0
+  jne error"
+    )
+}
+
 /// Task 3: Implement Code Generation
 fn compile_expr(e: &Expr, env: &HashMap<String, i32>, stack_offset: i32) -> String {
     match e {
-        Expr::Num(n) => format!("mov rax, {}", n),
+        Expr::Num(n) => {
+            format!("mov rax, {}\nsal rax, 1", n)
+        }
 
         Expr::Var(name) => {
             match env.get(name) {
@@ -150,12 +161,13 @@ fn compile_expr(e: &Expr, env: &HashMap<String, i32>, stack_offset: i32) -> Stri
 
         Expr::UnOp(op, subexpr) => {
             let expr_instrs = compile_expr(subexpr, env, stack_offset);
+            let check_instrs = check_number("rax");
             let op_instr = match op {
-                UnOp::Add1 => "add rax, 1",
-                UnOp::Sub1 => "sub rax, 1",
+                UnOp::Add1 => "add rax, 2",
+                UnOp::Sub1 => "sub rax, 2",
                 UnOp::Negate => "imul rax, -1",
             };
-            format!("{}\n{}", expr_instrs, op_instr)
+            format!("{}\n{}\n{}", expr_instrs, check_instrs, op_instr)
         },
 
         Expr::BinOp(op, e1, e2) => {
@@ -163,12 +175,16 @@ fn compile_expr(e: &Expr, env: &HashMap<String, i32>, stack_offset: i32) -> Stri
             
             // Evaluate left operand
             instrs.push(compile_expr(e1, env, stack_offset));
+            instrs.push(check_number("rax"));
+            instrs.push("sar rax, 1".to_string());
             
             // Save left operand on stack
             instrs.push(format!("mov [rsp - {}], rax", stack_offset));
             
             // Evaluate right operand
             instrs.push(compile_expr(e2, env, stack_offset + 8));
+            instrs.push(check_number("rax"));
+            instrs.push("sar rax, 1".to_string());
             
             // Perform operation
             match op {
@@ -185,6 +201,7 @@ fn compile_expr(e: &Expr, env: &HashMap<String, i32>, stack_offset: i32) -> Stri
                 }
             }
             
+            instrs.push("sal rax, 1".to_string()); // Shift left to re-tag as number
             instrs.join("\n  ")
         }
     }
@@ -223,10 +240,16 @@ fn main() -> std::io::Result<()> {
     // Wrap instructions in assembly program template
     let asm_program = format!(
         "section .text
+extern snek_error
 global our_code_starts_here
 our_code_starts_here:
   {}
   ret
+
+error:
+  mov rdi, 1
+  sub rsp, 8
+  call snek_error
 ",
         instrs
     );
