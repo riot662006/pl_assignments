@@ -9,6 +9,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 enum Expr {
     Num(i32),
+    Bool(bool),
     Var(String),
     Let(Vec<(String, Expr)>, Box<Expr>),
     UnOp(UnOp, Box<Expr>),
@@ -50,6 +51,12 @@ fn parse_expr(s: &Sexp) -> Expr {
         Sexp::Atom(I(n)) => Expr::Num(i32::try_from(*n).unwrap()),
         // <identifier>
         Sexp::Atom(S(name)) => {
+            if name == "true" {
+                return Expr::Bool(true);
+            }
+            if name == "false" {
+                return Expr::Bool(false);
+            }
             if name == "let" || name == "add1" || name == "sub1" || name == "negate" {
                 panic!("Invalid use of keyword as identifier: {}", name);
             }
@@ -123,6 +130,8 @@ fn compile_expr(e: &Expr, env: &HashMap<String, i32>, stack_offset: i32) -> Stri
         Expr::Num(n) => {
             format!("mov rax, {}\nsal rax, 1", n)
         }
+        Expr::Bool(true) => "mov rax, 3".to_string(),
+        Expr::Bool(false) => "mov rax, 1".to_string(),
 
         Expr::Var(name) => {
             match env.get(name) {

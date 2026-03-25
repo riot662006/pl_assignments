@@ -19,5 +19,9 @@ fn main() {
     let i: i64 = unsafe {
         our_code_starts_here()
     };
-    println!("{}", i >> 1);
+    match i {
+        3 => println!("true"),
+        1 => println!("false"),
+        _ => println!("{}", i >> 1),
+    }
 }
