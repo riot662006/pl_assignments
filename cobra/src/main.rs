@@ -177,12 +177,21 @@ fn check_number(reg: &str) -> String {
     )
 }
 
-fn check_same_type(stack_offset: i32) -> String {
+fn check_boolean(reg: &str) -> String {
     format!(
-        "mov rbx, [rsp - {stack_offset}]
-  xor rbx, rax
-  and rbx, 1
-  cmp rbx, 0
+        "mov rcx, {reg}
+  and rcx, 1
+  cmp rcx, 1
+  jne error"
+    )
+}
+
+fn check_same_type(reg1: &str, reg2: &str) -> String {
+    format!(
+        "mov rcx, {reg1}
+  xor rcx, {reg2}
+  and rcx, 1
+  cmp rcx, 0
   jne error"
     )
 }
@@ -336,7 +345,8 @@ fn compile_expr(
                 BinOp::Equal => {
                     let true_label = new_label(label_counter, "eq_true");
                     let done_label = new_label(label_counter, "eq_done");
-                    instrs.push(check_same_type(stack_offset));
+                    instrs.push(format!("mov rbx, [rsp - {}]", stack_offset));
+                    instrs.push(check_same_type("rbx", "rax"));
                     instrs.push(format!("cmp [rsp - {}], rax", stack_offset));
                     instrs.push(format!("je {}", true_label));
                     instrs.push("mov rax, 1".to_string());
