@@ -4,6 +4,7 @@ use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::collections::HashMap;
+use std::panic;
 
 // Task 1: Update AST Definition
 #[derive(Debug, Clone)]
@@ -436,7 +437,21 @@ fn compile_expr(
     }
 }
 
-fn main() -> std::io::Result<()> {
+fn install_compiler_error_hook() {
+    panic::set_hook(Box::new(|info| {
+        let message = if let Some(message) = info.payload().downcast_ref::<&str>() {
+            *message
+        } else if let Some(message) = info.payload().downcast_ref::<String>() {
+            message.as_str()
+        } else {
+            "unknown panic"
+        };
+
+        eprintln!("compiler error: {}", message);
+    }));
+}
+
+fn try_main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
     
     if args.len() != 3 {
@@ -489,6 +504,22 @@ error:
     out_file.write_all(asm_program.as_bytes())?;
 
     Ok(())
+}
+
+fn main() {
+    install_compiler_error_hook();
+
+    let result = panic::catch_unwind(try_main);
+    match result {
+        Ok(Ok(())) => {}
+        Ok(Err(err)) => {
+            eprintln!("compiler error: {}", err);
+            std::process::exit(1);
+        }
+        Err(_) => {
+            std::process::exit(1);
+        }
+    }
 }
 
 // ============= TESTS (Optional but recommended) =============
