@@ -12,6 +12,7 @@ enum Expr {
     Bool(bool),
     Var(String),
     Let(Vec<(String, Expr)>, Box<Expr>),
+    Set(String, Box<Expr>),
     Block(Vec<Expr>),
     If(Box<Expr>, Box<Expr>, Box<Expr>),
     UnOp(UnOp, Box<Expr>),
@@ -50,6 +51,7 @@ enum BinOp {
 //   | (negate <expr>)
 //   | (isnum <expr>)
 //   | (isbool <expr>)
+//   | (set! <identifier> <expr>)
 //   | (block <expr>+)
 //   | (if <expr> <expr> <expr>)
 //   | (+ <expr> <expr>)
@@ -81,6 +83,7 @@ fn parse_expr(s: &Sexp) -> Expr {
                 || name == "negate"
                 || name == "isnum"
                 || name == "isbool"
+                || name == "set!"
                 || name == "block"
                 || name == "if"
                 || name == "<"
@@ -131,6 +134,10 @@ fn parse_expr(s: &Sexp) -> Expr {
             // (isbool <expr>)
             [Sexp::Atom(S(op)), e] if op == "isbool" => {
                 Expr::UnOp(UnOp::IsBool, Box::new(parse_expr(e)))
+            },
+            // (set! <identifier> <expr>)
+            [Sexp::Atom(S(op)), Sexp::Atom(S(name)), expr] if op == "set!" => {
+                Expr::Set(name.to_string(), Box::new(parse_expr(expr)))
             },
             // (block <expr>+)
             [Sexp::Atom(S(op)), exprs @ ..] if op == "block" => {
@@ -269,6 +276,19 @@ fn compile_expr(
             instrs.push(compile_expr(body, &new_env, current_offset, label_counter));
 
             instrs.join("\n  ")
+        },
+
+        Expr::Set(name, expr) => {
+            let offset = match env.get(name) {
+                Some(offset) => *offset,
+                None => panic!("Unbounded variable: {}", name),
+            };
+            let mut instrs = Vec::new();
+
+            instrs.push(compile_expr(expr, env, stack_offset, label_counter));
+            instrs.push(format!("mov [rsp - {}], rax", offset));
+
+            instrs.join("\n")
         },
 
         Expr::Block(exprs) => {
