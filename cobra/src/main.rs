@@ -12,6 +12,7 @@ enum Expr {
     Bool(bool),
     Var(String),
     Let(Vec<(String, Expr)>, Box<Expr>),
+    If(Box<Expr>, Box<Expr>, Box<Expr>),
     UnOp(UnOp, Box<Expr>),
     BinOp(BinOp, Box<Expr>, Box<Expr>),
 }
@@ -48,6 +49,7 @@ enum BinOp {
 //   | (negate <expr>)
 //   | (isnum <expr>)
 //   | (isbool <expr>)
+//   | (if <expr> <expr> <expr>)
 //   | (+ <expr> <expr>)
 //   | (- <expr> <expr>)
 //   | (* <expr> <expr>)
@@ -77,6 +79,7 @@ fn parse_expr(s: &Sexp) -> Expr {
                 || name == "negate"
                 || name == "isnum"
                 || name == "isbool"
+                || name == "if"
                 || name == "<"
                 || name == ">"
                 || name == "<="
@@ -125,6 +128,14 @@ fn parse_expr(s: &Sexp) -> Expr {
             // (isbool <expr>)
             [Sexp::Atom(S(op)), e] if op == "isbool" => {
                 Expr::UnOp(UnOp::IsBool, Box::new(parse_expr(e)))
+            },
+            // (if <expr> <expr> <expr>)
+            [Sexp::Atom(S(op)), condition, then_expr, else_expr] if op == "if" => {
+                Expr::If(
+                    Box::new(parse_expr(condition)),
+                    Box::new(parse_expr(then_expr)),
+                    Box::new(parse_expr(else_expr)),
+                )
             },
 
             // (+ <expr> <expr>)
@@ -248,6 +259,29 @@ fn compile_expr(
             instrs.push(compile_expr(body, &new_env, current_offset, label_counter));
 
             instrs.join("\n  ")
+        },
+
+        Expr::If(condition, then_expr, else_expr) => {
+            let else_label = new_label(label_counter, "if_else");
+            let done_label = new_label(label_counter, "if_done");
+            let mut instrs = Vec::new();
+
+            // Evaluate the condition and ensure it produced a boolean.
+            instrs.push(compile_expr(condition, env, stack_offset, label_counter));
+            instrs.push(check_boolean("rax"));
+
+            // false is tagged as 1, so jump to the else branch in that case.
+            instrs.push("cmp rax, 1".to_string());
+            instrs.push(format!("je {}", else_label));
+
+            instrs.push(compile_expr(then_expr, env, stack_offset, label_counter));
+            instrs.push(format!("jmp {}", done_label));
+
+            instrs.push(format!("{}:", else_label));
+            instrs.push(compile_expr(else_expr, env, stack_offset, label_counter));
+            instrs.push(format!("{}:", done_label));
+
+            instrs.join("\n")
         },
 
         Expr::UnOp(op, subexpr) => {
