@@ -12,6 +12,7 @@ enum Expr {
     Bool(bool),
     Var(String),
     Let(Vec<(String, Expr)>, Box<Expr>),
+    Block(Vec<Expr>),
     If(Box<Expr>, Box<Expr>, Box<Expr>),
     UnOp(UnOp, Box<Expr>),
     BinOp(BinOp, Box<Expr>, Box<Expr>),
@@ -49,6 +50,7 @@ enum BinOp {
 //   | (negate <expr>)
 //   | (isnum <expr>)
 //   | (isbool <expr>)
+//   | (block <expr>+)
 //   | (if <expr> <expr> <expr>)
 //   | (+ <expr> <expr>)
 //   | (- <expr> <expr>)
@@ -79,6 +81,7 @@ fn parse_expr(s: &Sexp) -> Expr {
                 || name == "negate"
                 || name == "isnum"
                 || name == "isbool"
+                || name == "block"
                 || name == "if"
                 || name == "<"
                 || name == ">"
@@ -128,6 +131,13 @@ fn parse_expr(s: &Sexp) -> Expr {
             // (isbool <expr>)
             [Sexp::Atom(S(op)), e] if op == "isbool" => {
                 Expr::UnOp(UnOp::IsBool, Box::new(parse_expr(e)))
+            },
+            // (block <expr>+)
+            [Sexp::Atom(S(op)), exprs @ ..] if op == "block" => {
+                if exprs.is_empty() {
+                    panic!("Invalid block: expected at least one expression");
+                }
+                Expr::Block(exprs.iter().map(parse_expr).collect())
             },
             // (if <expr> <expr> <expr>)
             [Sexp::Atom(S(op)), condition, then_expr, else_expr] if op == "if" => {
@@ -259,6 +269,16 @@ fn compile_expr(
             instrs.push(compile_expr(body, &new_env, current_offset, label_counter));
 
             instrs.join("\n  ")
+        },
+
+        Expr::Block(exprs) => {
+            let mut instrs = Vec::new();
+
+            for expr in exprs {
+                instrs.push(compile_expr(expr, env, stack_offset, label_counter));
+            }
+
+            instrs.join("\n")
         },
 
         Expr::If(condition, then_expr, else_expr) => {
