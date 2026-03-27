@@ -11,7 +11,11 @@ extern "C" {
 
 #[no_mangle]
 extern "C" fn snek_error(_errcode: i64) -> ! {
-    eprintln!("invalid argument");
+    if _errcode == 1 {
+        eprintln!("invalid argument");
+    } else if _errcode == 2 {
+        eprintln!("overflow");
+    }
     std::process::exit(1);
 }
 

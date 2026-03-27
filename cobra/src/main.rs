@@ -6,6 +6,17 @@ use std::io::prelude::*;
 use std::collections::HashMap;
 use std::panic;
 
+const NUM_TAG: i64 = 0;
+const BOOL_TAG: i64 = 1;
+const TRUE_VAL: i64 = 3;
+const FALSE_VAL: i64 = 1;
+const TAG_MASK: i64 = 1;
+const WORD_SIZE: i32 = 8;
+const BOOL_CHECK_MASK: i64 = 1;
+const NUM_SHIFT: i64 = 1;
+const NUM_STEP: i64 = 2;
+const ERR_INVALID_ARGUMENT: i64 = 1;
+
 // Task 1: Update AST Definition
 #[derive(Debug, Clone)]
 enum Expr {
@@ -214,17 +225,17 @@ fn parse_expr(s: &Sexp) -> Expr {
 fn check_number(reg: &str) -> String {
     format!(
         "mov rcx, {reg}
-  and rcx, 1
-  cmp rcx, 0
-  jne error"
+  and rcx, {TAG_MASK}
+  cmp rcx, {NUM_TAG}
+  jne error",
     )
 }
 
 fn check_boolean(reg: &str) -> String {
     format!(
         "mov rcx, {reg}
-  and rcx, 1
-  cmp rcx, 1
+  and rcx, {BOOL_CHECK_MASK}
+  cmp rcx, {BOOL_TAG}
   jne error"
     )
 }
@@ -233,8 +244,8 @@ fn check_same_type(reg1: &str, reg2: &str) -> String {
     format!(
         "mov rcx, {reg1}
   xor rcx, {reg2}
-  and rcx, 1
-  cmp rcx, 0
+  and rcx, {TAG_MASK}
+  cmp rcx, {NUM_TAG}
   jne error"
     )
 }
@@ -254,10 +265,10 @@ fn compile_expr(
 ) -> String {
     match e {
         Expr::Num(n) => {
-            format!("mov rax, {}\nsal rax, 1", n)
+            format!("mov rax, {}\n  sal rax, {}", n, NUM_SHIFT)
         }
-        Expr::Bool(true) => "mov rax, 3".to_string(),
-        Expr::Bool(false) => "mov rax, 1".to_string(),
+        Expr::Bool(true) => format!("mov rax, {}", TRUE_VAL),
+        Expr::Bool(false) => format!("mov rax, {}", FALSE_VAL),
 
         Expr::Var(name) => {
             match env.get(name) {
@@ -285,7 +296,7 @@ fn compile_expr(
                 // Update the environment
                 new_env.insert(name.clone(), current_offset);
 
-                current_offset += 8;
+                current_offset += WORD_SIZE;
             }
 
             // Compile the body
@@ -304,7 +315,7 @@ fn compile_expr(
             instrs.push(compile_expr(expr, env, stack_offset, break_target, label_counter));
             instrs.push(format!("mov [rsp - {}], rax", offset));
 
-            instrs.join("\n")
+            instrs.join("\n  ")
         },
 
         Expr::Block(exprs) => {
@@ -314,7 +325,7 @@ fn compile_expr(
                 instrs.push(compile_expr(expr, env, stack_offset, break_target, label_counter));
             }
 
-            instrs.join("\n")
+            instrs.join("\n  ")
         },
 
         Expr::Loop(expr) => {
@@ -327,7 +338,7 @@ fn compile_expr(
             instrs.push(format!("jmp {}", loop_start));
             instrs.push(format!("{}:", loop_end));
 
-            instrs.join("\n")
+            instrs.join("\n  ")
         },
 
         Expr::Break(expr) => {
@@ -340,7 +351,7 @@ fn compile_expr(
             instrs.push(compile_expr(expr, env, stack_offset, break_target, label_counter));
             instrs.push(format!("jmp {}", target));
 
-            instrs.join("\n")
+            instrs.join("\n  ")
         },
 
         Expr::If(condition, then_expr, else_expr) => {
@@ -352,8 +363,8 @@ fn compile_expr(
             instrs.push(compile_expr(condition, env, stack_offset, break_target, label_counter));
             instrs.push(check_boolean("rax"));
 
-            // false is tagged as 1, so jump to the else branch in that case.
-            instrs.push("cmp rax, 1".to_string());
+            // false is tagged as FALSE_VAL, so jump to the else branch in that case.
+            instrs.push(format!("cmp rax, {}", FALSE_VAL));
             instrs.push(format!("je {}", else_label));
 
             instrs.push(compile_expr(then_expr, env, stack_offset, break_target, label_counter));
@@ -363,39 +374,57 @@ fn compile_expr(
             instrs.push(compile_expr(else_expr, env, stack_offset, break_target, label_counter));
             instrs.push(format!("{}:", done_label));
 
-            instrs.join("\n")
+            instrs.join("\n  ")
         },
 
         Expr::UnOp(op, subexpr) => {
-            let expr_instrs = compile_expr(subexpr, env, stack_offset, break_target, label_counter);
+            let mut instrs = Vec::new();
+
+            instrs.push(compile_expr(subexpr, env, stack_offset, break_target, label_counter));
             match op {
                 UnOp::Add1 | UnOp::Sub1 | UnOp::Negate => {
-                    let check_instrs = check_number("rax");
+                    instrs.push(check_number("rax"));
+                    
                     let op_instr = match op {
-                        UnOp::Add1 => "add rax, 2",
-                        UnOp::Sub1 => "sub rax, 2",
+                        UnOp::Add1 => &format!("add rax, {}", NUM_STEP),
+                        UnOp::Sub1 => &format!("sub rax, {}", NUM_STEP),
                         UnOp::Negate => "imul rax, -1",
                         _ => unreachable!(),
                     };
-                    format!("{}\n{}\n{}", expr_instrs, check_instrs, op_instr)
+
+                    instrs.push(op_instr.to_string());
                 }
-                UnOp::IsNum => {
-                    let true_label = new_label(label_counter, "isnum_true");
-                    let done_label = new_label(label_counter, "isnum_done");
-                    format!(
-                        "{}\nmov rbx, rax\nand rbx, 1\ncmp rbx, 0\nje {}\nmov rax, 1\njmp {}\n{}:\nmov rax, 3\n{}:",
-                        expr_instrs, true_label, done_label, true_label, done_label
-                    )
-                }
-                UnOp::IsBool => {
-                    let true_label = new_label(label_counter, "isbool_true");
-                    let done_label = new_label(label_counter, "isbool_done");
-                    format!(
-                        "{}\ncmp rax, 1\nje {}\ncmp rax, 3\nje {}\nmov rax, 1\njmp {}\n{}:\nmov rax, 3\n{}:",
-                        expr_instrs, true_label, true_label, done_label, true_label, done_label
-                    )
+                UnOp::IsNum | UnOp::IsBool => {
+                    let true_label; 
+                    let done_label;
+
+                    match op {
+                        UnOp::IsNum => {
+                            true_label = new_label(label_counter, "isnum_true");
+                            done_label = new_label(label_counter, "isnum_done");
+                            instrs.push(format!("mov rcx, rax\n  and rcx, {}", TAG_MASK));
+                            instrs.push(format!("cmp rcx, {}", NUM_TAG));
+                        }
+                        UnOp::IsBool => {
+                            true_label = new_label(label_counter, "isbool_true");
+                            done_label = new_label(label_counter, "isbool_done");
+                            instrs.push(format!("mov rcx, rax\n  and rcx, {}", BOOL_CHECK_MASK));
+                            instrs.push(format!("cmp rcx, {}", BOOL_TAG));
+                        }
+                        _ => unreachable!(),
+                    }
+                    
+                    // If the value matches the expected type, jump to the true case. Otherwise, set rax to false and jump to done.
+                    instrs.push(format!("je {}", true_label));
+                    instrs.push(format!("mov rax, {}", FALSE_VAL));
+                    instrs.push(format!("jmp {}", done_label));
+                    instrs.push(format!("{}:", true_label));
+                    instrs.push(format!("mov rax, {}", TRUE_VAL));
+                    instrs.push(format!("{}:", done_label));
                 }
             }
+
+            instrs.join("\n  ")
         },
 
         Expr::BinOp(op, e1, e2) => {
@@ -408,7 +437,7 @@ fn compile_expr(
             instrs.push(format!("mov [rsp - {}], rax", stack_offset));
             
             // Evaluate right operand
-            instrs.push(compile_expr(e2, env, stack_offset + 8, break_target, label_counter));
+            instrs.push(compile_expr(e2, env, stack_offset + WORD_SIZE, break_target, label_counter));
             
             // Perform operation
             match op {
@@ -416,8 +445,8 @@ fn compile_expr(
                     instrs.push(check_number("rax"));
                     instrs.push(format!("mov rbx, [rsp - {}]", stack_offset));
                     instrs.push(check_number("rbx"));
-                    instrs.push("sar rax, 1".to_string());
-                    instrs.push("sar rbx, 1".to_string());
+                    instrs.push(format!("sar rax, {}", NUM_SHIFT));
+                    instrs.push(format!("sar rbx, {}", NUM_SHIFT));
 
                     match op {
                         BinOp::Plus => {
@@ -433,7 +462,7 @@ fn compile_expr(
                         _ => unreachable!(),
                     }
 
-                    instrs.push("sal rax, 1".to_string());
+                    instrs.push(format!("sal rax, {}", NUM_SHIFT));
                 }
                 BinOp::Less | BinOp::Greater | BinOp::LessEqual | BinOp::GreaterEqual => {
                     instrs.push(check_number("rax"));
@@ -452,10 +481,10 @@ fn compile_expr(
                     };
 
                     instrs.push(format!("{} {}", jump, true_label));
-                    instrs.push("mov rax, 1".to_string());
+                    instrs.push(format!("mov rax, {}", FALSE_VAL));
                     instrs.push(format!("jmp {}", done_label));
                     instrs.push(format!("{}:", true_label));
-                    instrs.push("mov rax, 3".to_string());
+                    instrs.push(format!("mov rax, {}", TRUE_VAL));
                     instrs.push(format!("{}:", done_label));
                 }
                 BinOp::Equal => {
@@ -465,10 +494,10 @@ fn compile_expr(
                     instrs.push(check_same_type("rbx", "rax"));
                     instrs.push(format!("cmp [rsp - {}], rax", stack_offset));
                     instrs.push(format!("je {}", true_label));
-                    instrs.push("mov rax, 1".to_string());
+                    instrs.push(format!("mov rax, {}", FALSE_VAL));
                     instrs.push(format!("jmp {}", done_label));
                     instrs.push(format!("{}:", true_label));
-                    instrs.push("mov rax, 3".to_string());
+                    instrs.push(format!("mov rax, {}", TRUE_VAL));
                     instrs.push(format!("{}:", done_label));
                 }
             }
@@ -521,7 +550,7 @@ fn try_main() -> std::io::Result<()> {
     let mut label_counter = 0;
     
     // Generate assembly instructions
-    let instrs = compile_expr(&expr, &env, 8, None, &mut label_counter);
+    let instrs = compile_expr(&expr, &env, WORD_SIZE, None, &mut label_counter);
     
     // Wrap instructions in assembly program template
     let asm_program = format!(
@@ -533,8 +562,8 @@ our_code_starts_here:
   ret
 
 error:
-  mov rdi, 1
-  sub rsp, 8
+  mov rdi, {ERR_INVALID_ARGUMENT}
+  sub rsp, {WORD_SIZE}
   call snek_error
 ",
         instrs
