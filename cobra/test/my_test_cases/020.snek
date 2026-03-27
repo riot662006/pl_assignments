@@ -1,0 +1,5 @@
+(let ((x 3))
+  (loop
+    (if (= x 0)
+        (break 99)
+        (set! x (sub1 x)))))

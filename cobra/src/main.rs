@@ -15,6 +15,8 @@ enum Expr {
     Let(Vec<(String, Expr)>, Box<Expr>),
     Set(String, Box<Expr>),
     Block(Vec<Expr>),
+    Loop(Box<Expr>),
+    Break(Box<Expr>),
     If(Box<Expr>, Box<Expr>, Box<Expr>),
     UnOp(UnOp, Box<Expr>),
     BinOp(BinOp, Box<Expr>, Box<Expr>),
@@ -54,6 +56,8 @@ enum BinOp {
 //   | (isbool <expr>)
 //   | (set! <identifier> <expr>)
 //   | (block <expr>+)
+//   | (loop <expr>)
+//   | (break <expr>)
 //   | (if <expr> <expr> <expr>)
 //   | (+ <expr> <expr>)
 //   | (- <expr> <expr>)
@@ -86,6 +90,8 @@ fn parse_expr(s: &Sexp) -> Expr {
                 || name == "isbool"
                 || name == "set!"
                 || name == "block"
+                || name == "loop"
+                || name == "break"
                 || name == "if"
                 || name == "<"
                 || name == ">"
@@ -146,6 +152,14 @@ fn parse_expr(s: &Sexp) -> Expr {
                     panic!("Invalid block: expected at least one expression");
                 }
                 Expr::Block(exprs.iter().map(parse_expr).collect())
+            },
+            // (loop <expr>)
+            [Sexp::Atom(S(op)), expr] if op == "loop" => {
+                Expr::Loop(Box::new(parse_expr(expr)))
+            },
+            // (break <expr>)
+            [Sexp::Atom(S(op)), expr] if op == "break" => {
+                Expr::Break(Box::new(parse_expr(expr)))
             },
             // (if <expr> <expr> <expr>)
             [Sexp::Atom(S(op)), condition, then_expr, else_expr] if op == "if" => {
@@ -235,6 +249,7 @@ fn compile_expr(
     e: &Expr,
     env: &HashMap<String, i32>,
     stack_offset: i32,
+    break_target: Option<&String>,
     label_counter: &mut i32,
 ) -> String {
     match e {
@@ -262,7 +277,7 @@ fn compile_expr(
                 }
                 
                 // Compile the expression
-                instrs.push(compile_expr(expr, &env, current_offset, label_counter));
+                instrs.push(compile_expr(expr, &env, current_offset, break_target, label_counter));
 
                 // Store the result in the environment
                 instrs.push(format!("mov [rsp - {}], rax", current_offset));
@@ -274,7 +289,7 @@ fn compile_expr(
             }
 
             // Compile the body
-            instrs.push(compile_expr(body, &new_env, current_offset, label_counter));
+            instrs.push(compile_expr(body, &new_env, current_offset, break_target, label_counter));
 
             instrs.join("\n  ")
         },
@@ -286,7 +301,7 @@ fn compile_expr(
             };
             let mut instrs = Vec::new();
 
-            instrs.push(compile_expr(expr, env, stack_offset, label_counter));
+            instrs.push(compile_expr(expr, env, stack_offset, break_target, label_counter));
             instrs.push(format!("mov [rsp - {}], rax", offset));
 
             instrs.join("\n")
@@ -296,8 +311,34 @@ fn compile_expr(
             let mut instrs = Vec::new();
 
             for expr in exprs {
-                instrs.push(compile_expr(expr, env, stack_offset, label_counter));
+                instrs.push(compile_expr(expr, env, stack_offset, break_target, label_counter));
             }
+
+            instrs.join("\n")
+        },
+
+        Expr::Loop(expr) => {
+            let loop_start = new_label(label_counter, "loop_start");
+            let loop_end = new_label(label_counter, "loop_end");
+            let mut instrs = Vec::new();
+
+            instrs.push(format!("{}:", loop_start));
+            instrs.push(compile_expr(expr, env, stack_offset, Some(&loop_end), label_counter));
+            instrs.push(format!("jmp {}", loop_start));
+            instrs.push(format!("{}:", loop_end));
+
+            instrs.join("\n")
+        },
+
+        Expr::Break(expr) => {
+            let target = match break_target {
+                Some(target) => target,
+                None => panic!("break used outside of loop"),
+            };
+            let mut instrs = Vec::new();
+
+            instrs.push(compile_expr(expr, env, stack_offset, break_target, label_counter));
+            instrs.push(format!("jmp {}", target));
 
             instrs.join("\n")
         },
@@ -308,25 +349,25 @@ fn compile_expr(
             let mut instrs = Vec::new();
 
             // Evaluate the condition and ensure it produced a boolean.
-            instrs.push(compile_expr(condition, env, stack_offset, label_counter));
+            instrs.push(compile_expr(condition, env, stack_offset, break_target, label_counter));
             instrs.push(check_boolean("rax"));
 
             // false is tagged as 1, so jump to the else branch in that case.
             instrs.push("cmp rax, 1".to_string());
             instrs.push(format!("je {}", else_label));
 
-            instrs.push(compile_expr(then_expr, env, stack_offset, label_counter));
+            instrs.push(compile_expr(then_expr, env, stack_offset, break_target, label_counter));
             instrs.push(format!("jmp {}", done_label));
 
             instrs.push(format!("{}:", else_label));
-            instrs.push(compile_expr(else_expr, env, stack_offset, label_counter));
+            instrs.push(compile_expr(else_expr, env, stack_offset, break_target, label_counter));
             instrs.push(format!("{}:", done_label));
 
             instrs.join("\n")
         },
 
         Expr::UnOp(op, subexpr) => {
-            let expr_instrs = compile_expr(subexpr, env, stack_offset, label_counter);
+            let expr_instrs = compile_expr(subexpr, env, stack_offset, break_target, label_counter);
             match op {
                 UnOp::Add1 | UnOp::Sub1 | UnOp::Negate => {
                     let check_instrs = check_number("rax");
@@ -361,13 +402,13 @@ fn compile_expr(
             let mut instrs = Vec::new();
             
             // Evaluate left operand
-            instrs.push(compile_expr(e1, env, stack_offset, label_counter));
+            instrs.push(compile_expr(e1, env, stack_offset, break_target, label_counter));
             
             // Save left operand on stack
             instrs.push(format!("mov [rsp - {}], rax", stack_offset));
             
             // Evaluate right operand
-            instrs.push(compile_expr(e2, env, stack_offset + 8, label_counter));
+            instrs.push(compile_expr(e2, env, stack_offset + 8, break_target, label_counter));
             
             // Perform operation
             match op {
@@ -480,7 +521,7 @@ fn try_main() -> std::io::Result<()> {
     let mut label_counter = 0;
     
     // Generate assembly instructions
-    let instrs = compile_expr(&expr, &env, 8, &mut label_counter);
+    let instrs = compile_expr(&expr, &env, 8, None, &mut label_counter);
     
     // Wrap instructions in assembly program template
     let asm_program = format!(
