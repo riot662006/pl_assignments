@@ -61,7 +61,13 @@ transcript:
 	  cat "$$asm"; \
 	  echo; \
 	  echo "> ./$$run"; \
+	  set +e; \
 	  ./$$run; \
+	  status=$$?; \
+	  set -e; \
+	  if [ $$status -ne 0 ]; then \
+	    echo "[exit $$status]"; \
+	  fi; \
 	  rm -f "$$asm" "$$run"; \
 	  echo; echo; \
 	done

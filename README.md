@@ -1,50 +1,112 @@
-# Programming Languages — Assignment Collection
+# Programming Languages Assignment Collection
 
-This repository collects my Programming Languages assignments for the semester (Spring 2026). Work is written mainly in Rust and focuses on designing and implementing small compilers to learn the compilation pipeline end-to-end: parsing, AST construction, code generation, assembly emission, and linking.
+This repository collects my Programming Languages compiler assignments for Spring 2026. Each folder builds a slightly larger version of the same S-expression based language, moving from simple arithmetic to variables, then to booleans, control flow, mutation, and runtime type checking.
+
+The projects are written in Rust and generate x86-64 assembly, which is then assembled and linked with a small Rust runtime.
+
+## Repository Layout
+
+- `cobra/` - Week 3 compiler with booleans, conditionals, loops, mutation, and tagged runtime values
+- `boa/` - Week 2 compiler with variables, `let` bindings, and binary arithmetic
+- `adder/` - Week 1 compiler with numeric literals and unary arithmetic
+- `_starter_code/` - starter template provided for the assignment sequence
+
+## Cobra (Week 3)
+
+- **Title:** Cobra - Booleans, Conditionals, and Loops
+- **Due:** Fri Mar 27, 2026
+- **Overview:** Extends the compiler to support booleans, conditionals, loops, mutation with `set!`, blocks, comparisons, and runtime type checking.
+
+**What is implemented**
+
+- Tagged runtime values for numbers and booleans
+- Boolean literals: `true`, `false`
+- Unary operations: `add1`, `sub1`, `negate`, `isnum`, `isbool`
+- Binary operations: `+`, `-`, `*`, `<`, `>`, `<=`, `>=`, `=`
+- Variables and `let` bindings
+- Mutation with `set!`
+- Multi-expression `block`
+- Control flow with `if`, `loop`, and `break`
+- Runtime invalid-argument errors through `snek_error`
+- Compiler-side checks for invalid identifiers, duplicate bindings, unbound variables, invalid blocks, and `break` outside loops
+
+**Current structure**
+
+- `cobra/src/main.rs` - parser, AST, tagged-value code generation, label management, and compiler error handling
+- `cobra/runtime/start.rs` - runtime entry point plus printing of tagged booleans and numbers
+- `cobra/test/legacy_tests/` - carried-forward tests from earlier assignments
+- `cobra/test/error_cases/` - programs that should fail
+- `cobra/test/my_test_cases/` - additional custom Cobra test programs
+- `cobra/Makefile` - build, run, transcript, and clean targets
+
+## Boa (Week 2)
+
+- **Title:** Boa - Variables and Binary Operators
+- **Due:** Fri Mar 13, 2026
+- **Overview:** Extends the compiler to support variables, `let` bindings, stack allocation, and binary arithmetic operators.
+
+**What is implemented**
+
+- Numeric literals and identifiers
+- Unary operations: `add1`, `sub1`, `negate`
+- Binary operations: `+`, `-`, `*`
+- `let` bindings with stack-based variable storage
+- Environment tracking with a Rust `HashMap`
+- Shadowing support through nested environments
+- Compiler-side checks for duplicate bindings, keyword misuse, and unbound variables
+
+**Current structure**
+
+- `boa/src/main.rs` - AST definitions, parser, environment-based code generation, and assembly emission
+- `boa/runtime/start.rs` - runtime entry point for printing numeric results
+- `boa/test/` - provided Boa tests
+- `boa/test/error_cases/` - invalid programs
+- `boa/test/my_test_cases/` - extra custom tests
+- `boa/Makefile` - build, run, transcript, and clean targets
 
 ## Adder (Week 1)
 
-- **Purpose:** Build a minimal but complete compiler for a tiny expression language to understand how each compilation stage works together.
-- **Learning objectives:**
-  - Understand the basic structure of a compiler (lexer/parse → AST → codegen → link/run).
-  - Parse S-expressions into an AST and model expressions in Rust.
-  - Generate x86-64 assembly from abstract syntax and learn calling/return conventions.
-  - Use Rust's type system and pattern matching to express compiler logic safely.
-  - Use external tools (NASM, `ar`, and `rustc`/`cargo`) to assemble and link generated code.
+- **Title:** Adder
+- **Due:** Fri Feb 20, 2026
+- **Overview:** Builds the first minimal compiler in the sequence, covering parsing, AST construction, unary arithmetic, and assembly generation.
 
-**Layout**
+**What is implemented**
 
-- `src/` — Primary compiler code (parser, AST types, code generator, and `main.rs`).
-- `runtime/` — Small Rust runtime (`start.rs`) that declares and calls into the generated symbol `our_code_starts_here` and prints the returned value.
-- `test/` — Example `.snek` source files, generated `.s` assembly, and runnable artifacts/transcripts.
-- `Makefile` — Targets to build generated assembly, archive it into `runtime/libour_code.a`, and produce test runners under `test/`.
-- `Cargo.toml` — Rust manifest (dependencies such as `sexp` for parsing).
+- Numeric literals
+- Unary operations: `add1`, `sub1`, `negate`
+- Parsing from S-expressions into a Rust AST
+- Direct x86-64 code generation into `rax`
+- Assembly emission and linking with a small runtime
 
-This layout keeps each week or assignment under its own header and folder so that every assignment can carry its source, tests, and transcript independently.
+**Current structure**
 
-**How to run the provided tests (basic)**
+- `adder/src/main.rs` - parser, AST, and code generator for the Week 1 language
+- `adder/runtime/start.rs` - runtime entry point
+- `adder/test/` - example programs and transcripts
+- `adder/Makefile` - build and clean targets
 
-The repository includes Makefile targets that mirror the assignment instructions. On Linux (example):
+## Running the Projects
+
+Each assignment folder is self-contained. Run commands from inside the relevant folder.
 
 ```bash
-# generate assembly for a test (writes test/NAME.s)
-make test/37.s
-
-# assemble, archive, and build the test runner (produces test/37.run)
-make test/37.run
-
-# run the produced test program
-./test/37.run
-
-# inspect the generated assembly
-cat test/37.s
+cd cobra
+make test
 ```
 
-Replace `37` with any test base name present in `test/` (for example, `add`, `negate`, `complex`). The Makefile handles NASM invocation and creation of `runtime/libour_code.a`.
+You can also generate a transcript for a specific test folder:
 
-Note: you do not strictly need to run every test locally. The provided tests are sub-folders under the `test/` folder and `transcript.txt` show the compiler runs and outputs for each test for grading. The transcript files contain the exact commands and terminal output used to demonstrate correctness.
+```bash
+cd cobra
+make transcript DIR=test/my_test_cases
+```
 
-## Future
+The same pattern works for `boa/` and `adder/`, using their local `Makefile`s and test directories.
 
-More assignments and improvements will be added throughout the semester, including assignment templates, annotated solutions, and optimization exercises (constant folding, better error messages, pretty printer, etc.). The course is taught by Dr. Qi Li. You can see his course materials and assignment list at: https://github.com/qilimk/CSCI282L-2026SPRING for official instructions and additional resources.
+## Notes
 
+- All three compilers read a `.snek` input file and produce `.s` assembly output.
+- The generated assembly is assembled with NASM and linked with the runtime using `ar` and `rustc`.
+- Later assignments build directly on ideas introduced in earlier ones, so the repo is organized to show that progression clearly.
+
+Course materials and official assignment instructions were provided by Dr. Qi Li.
