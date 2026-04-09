@@ -41,6 +41,8 @@ fn ensure_valid_identifier(name: &str, error_msg: &str) -> String {
         || name == "block"
         || name == "loop"
         || name == "break"
+        || name == "print"
+        || name == "call"
         || name == "if"
         || name == "<"
         || name == ">"
@@ -359,11 +361,66 @@ fn new_label(label_counter: &mut i32, name: &str) -> String {
     format!("{}_{}", name, label_counter)
 }
 
+fn align_to_16(n: i32) -> i32 {
+    if n % 16 == 0 {
+        n
+    } else {
+        n + (16 - (n % 16))
+    }
+}
+
+fn stack_space_needed(e: &Expr, stack_offset: i32) -> i32 {
+    match e {
+        Expr::Num(_) | Expr::Bool(_) | Expr::Var(_) => 0,
+        Expr::Let(bindings, body) => {
+            let mut max_needed = 0;
+            let mut current_offset = stack_offset;
+
+            for (_, expr) in bindings {
+                max_needed = max_needed.max(current_offset);
+                max_needed = max_needed.max(stack_space_needed(expr, current_offset));
+                current_offset += WORD_SIZE;
+            }
+
+            max_needed.max(stack_space_needed(body, current_offset))
+        }
+        Expr::Set(_, expr)
+        | Expr::Loop(expr)
+        | Expr::Break(expr)
+        | Expr::UnOp(_, expr)
+        | Expr::Print(expr) => stack_space_needed(expr, stack_offset),
+        Expr::Block(exprs) => exprs
+            .iter()
+            .map(|expr| stack_space_needed(expr, stack_offset))
+            .max()
+            .unwrap_or(0),
+        Expr::If(condition, then_expr, else_expr) => stack_space_needed(condition, stack_offset)
+            .max(stack_space_needed(then_expr, stack_offset))
+            .max(stack_space_needed(else_expr, stack_offset)),
+        Expr::BinOp(_, e1, e2) => stack_offset
+            .max(stack_space_needed(e1, stack_offset))
+            .max(stack_space_needed(e2, stack_offset + WORD_SIZE)),
+        Expr::Call(_, args) => args
+            .iter()
+            .map(|arg| stack_space_needed(arg, stack_offset))
+            .max()
+            .unwrap_or(0),
+    }
+}
+
 pub fn compile_program(program: &Program) -> String {
     let mut label_counter = 0;
+    let main_frame_size = align_to_16(std::cmp::max(32, stack_space_needed(&program.main, WORD_SIZE)));
 
-    // Generate assembly instructions: Start with empty environment and offset 8
-    let instrs = compile_expr(
+    let func_instrs = program
+        .defns
+        .iter()
+        .map(|defn| compile_defn(defn, &mut label_counter))
+        .collect::<Vec<_>>()
+        .join("\n  ");
+
+    // Generate assembly instructions for main
+    let main_instrs = compile_expr(
         &program.main,
         &HashMap::new(),
         WORD_SIZE,
@@ -375,18 +432,66 @@ pub fn compile_program(program: &Program) -> String {
     format!(
         "section .text
 extern snek_error
+extern snek_print
 global our_code_starts_here
 our_code_starts_here:
-  {}
+  push rbp
+  mov rbp, rsp
+  sub rsp, {main_frame_size}
+  {main_instrs}
+  mov rsp, rbp
+  pop rbp
   ret
+
+  {func_instrs}
 
 error:
   mov rdi, {ERR_INVALID_ARGUMENT}
   sub rsp, {WORD_SIZE}
   call snek_error
-",
-        instrs
+"
     )
+}
+
+fn compile_defn(defn: &Definition, label_counter: &mut i32) -> String {
+    let mut instrs = vec![];
+    let frame_size = align_to_16(std::cmp::max(32, stack_space_needed(&defn.body, WORD_SIZE)));
+
+    instrs.push(format!("fun_{}:", defn.name));
+
+    // Prologue: save rbp and set up new stack frame
+    instrs.push("push rbp".to_string());
+    instrs.push("mov rbp, rsp".to_string());
+
+    let mut env = HashMap::new();
+    // Parameters: accessed via rbp with positive offsets
+    // 1st param at rbp+16, 2nd at rbp+24, 3rd at rbp+32, etc.
+    for (i, param) in defn.params.iter().enumerate() {
+        let offset = 16 + (i as i32 * 8);
+        env.insert(param.clone(), offset);
+    }
+
+    // Reserve a small fixed local area for stack slots used by lets/binops.
+    // This prologue leaves rsp 16-byte aligned, but later pushes for arguments
+    // can change that, so each emitted call site must still realign as needed.
+    instrs.push(format!("sub rsp, {}", frame_size));
+
+    // Compile body with initial stack offset for local variables
+    // Locals are now properly allocated on the stack
+    instrs.push(compile_expr(
+        &defn.body,
+        &env,
+        WORD_SIZE,
+        None,
+        label_counter,
+    ));
+
+    // Epilogue: restore rbp (which restores rsp) and return
+    instrs.push("mov rsp, rbp".to_string());
+    instrs.push("pop rbp".to_string());
+    instrs.push("ret".to_string());
+
+    instrs.join("\n  ")
 }
 
 fn compile_expr(
@@ -404,7 +509,15 @@ fn compile_expr(
         Expr::Bool(false) => format!("mov rax, {}", FALSE_VAL),
 
         Expr::Var(name) => match env.get(name) {
-            Some(offset) => format!("mov rax, [rsp - {}]", offset),
+            Some(offset) => {
+                if *offset > 0 {
+                    // Parameter: accessed via rbp with positive offset
+                    format!("mov rax, [rbp + {}]", offset)
+                } else {
+                    // Local variable: accessed via rsp with negative offset
+                    format!("mov rax, [rbp - {}]", -offset)
+                }
+            }
             None => panic!("Unbounded variable: {}", name),
         },
 
@@ -428,10 +541,11 @@ fn compile_expr(
                 ));
 
                 // Store the result in the environment
-                instrs.push(format!("mov [rsp - {}], rax", current_offset));
+                let local_offset = -current_offset;
+                instrs.push(format!("mov [rbp - {}], rax", current_offset));
 
                 // Update the environment
-                new_env.insert(name.clone(), current_offset);
+                new_env.insert(name.clone(), local_offset);
 
                 current_offset += WORD_SIZE;
             }
@@ -453,6 +567,12 @@ fn compile_expr(
                 Some(offset) => *offset,
                 None => panic!("Unbounded variable: {}", name),
             };
+            
+            // Can only set local variables, not parameters
+            if offset > 0 {
+                panic!("Cannot set parameter: {}", name);
+            }
+
             let mut instrs = Vec::new();
 
             instrs.push(compile_expr(
@@ -462,7 +582,7 @@ fn compile_expr(
                 break_target,
                 label_counter,
             ));
-            instrs.push(format!("mov [rsp - {}], rax", offset));
+            instrs.push(format!("mov [rbp - {}], rax", -offset));
 
             instrs.join("\n  ")
         }
@@ -631,7 +751,7 @@ fn compile_expr(
             ));
 
             // Save left operand on stack
-            instrs.push(format!("mov [rsp - {}], rax", stack_offset));
+            instrs.push(format!("mov [rbp - {}], rax", stack_offset));
 
             // Evaluate right operand
             instrs.push(compile_expr(
@@ -646,7 +766,7 @@ fn compile_expr(
             match op {
                 BinOp::Plus | BinOp::Minus | BinOp::Times => {
                     instrs.push(check_number("rax"));
-                    instrs.push(format!("mov rbx, [rsp - {}]", stack_offset));
+                    instrs.push(format!("mov rbx, [rbp - {}]", stack_offset));
                     instrs.push(check_number("rbx"));
                     instrs.push(format!("sar rax, {}", NUM_SHIFT));
                     instrs.push(format!("sar rbx, {}", NUM_SHIFT));
@@ -669,11 +789,11 @@ fn compile_expr(
                 }
                 BinOp::Less | BinOp::Greater | BinOp::LessEqual | BinOp::GreaterEqual => {
                     instrs.push(check_number("rax"));
-                    instrs.push(format!("mov rbx, [rsp - {}]", stack_offset));
+                    instrs.push(format!("mov rbx, [rbp - {}]", stack_offset));
                     instrs.push(check_number("rbx"));
                     let true_label = new_label(label_counter, "cmp_true");
                     let done_label = new_label(label_counter, "cmp_done");
-                    instrs.push(format!("cmp [rsp - {}], rax", stack_offset));
+                    instrs.push(format!("cmp [rbp - {}], rax", stack_offset));
 
                     let jump = match op {
                         BinOp::Less => "jl",
@@ -693,9 +813,9 @@ fn compile_expr(
                 BinOp::Equal => {
                     let true_label = new_label(label_counter, "eq_true");
                     let done_label = new_label(label_counter, "eq_done");
-                    instrs.push(format!("mov rbx, [rsp - {}]", stack_offset));
+                    instrs.push(format!("mov rbx, [rbp - {}]", stack_offset));
                     instrs.push(check_same_type("rbx", "rax"));
-                    instrs.push(format!("cmp [rsp - {}], rax", stack_offset));
+                    instrs.push(format!("cmp [rbp - {}], rax", stack_offset));
                     instrs.push(format!("je {}", true_label));
                     instrs.push(format!("mov rax, {}", FALSE_VAL));
                     instrs.push(format!("jmp {}", done_label));
@@ -730,6 +850,13 @@ fn compile_expr(
 
         Expr::Call(name, args) => {
             let mut instrs = Vec::new();
+            let needs_padding = args.len() % 2 == 1;
+
+            // Reserve the alignment slot before pushing arguments so the callee
+            // still sees its first argument at [rbp + 16].
+            if needs_padding {
+                instrs.push(format!("sub rsp, {}", WORD_SIZE));
+            }
 
             // Push arguments right-to-left (reverse order)
             for arg in args.iter().rev() {
@@ -746,9 +873,11 @@ fn compile_expr(
             // Call function
             instrs.push(format!("call fun_{}", name));
 
-            // Clean up stack (each argument is 8 bytes)
-            if !args.is_empty() {
-                instrs.push(format!("add rsp, {}", args.len() as i32 * WORD_SIZE));
+            // Clean up the padding slot plus argument pushes.
+            let stack_cleanup =
+                (args.len() as i32 * WORD_SIZE) + if needs_padding { WORD_SIZE } else { 0 };
+            if stack_cleanup != 0 {
+                instrs.push(format!("add rsp, {}", stack_cleanup));
             }
 
             instrs.join("\n  ")

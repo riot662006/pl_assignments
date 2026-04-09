@@ -1,0 +1,6 @@
+(fun (countdown n)
+  (if (= n 0)
+    0
+    (+ 1 (countdown (- n 1)))))
+
+(countdown 3)

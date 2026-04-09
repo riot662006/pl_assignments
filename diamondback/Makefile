@@ -14,13 +14,14 @@ DIR ?= test
 SNEK_FILES := $(wildcard $(DIR)/*.snek)
 S_FILES    := $(patsubst %.snek,%.s,$(SNEK_FILES))
 RUN_FILES  := $(patsubst %.snek,%.run,$(SNEK_FILES))
+COMPILER_SRCS := $(wildcard src/*.rs)
 
 # ---------------------------------------------
 # Compilation rules (works for any subfolder under test/)
 # ---------------------------------------------
 
 # .snek → .s
-$(DIR)/%.s: $(DIR)/%.snek src/main.rs
+$(DIR)/%.s: $(DIR)/%.snek $(COMPILER_SRCS)
 	cargo run -- $< $@
 
 # .s → .run
@@ -35,7 +36,10 @@ $(DIR)/%.run: $(DIR)/%.s runtime/start.rs
 .PHONY: test
 test: $(RUN_FILES)
 	@echo "Running tests in $(DIR)..."
-	@for f in $(RUN_FILES); do ./$$f; done
+	@for f in $(RUN_FILES); do \
+	  echo "  $${f%.run}"; \
+	  ./$$f; \
+	done
 
 # ---------------------------------------------
 # Unified transcript for all tests in DIR

@@ -1,0 +1,4 @@
+(fun (return_five x)
+  x)
+
+(return_five 42)

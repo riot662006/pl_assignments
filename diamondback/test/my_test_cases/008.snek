@@ -1,0 +1,8 @@
+(fun (countdown n)
+  (block
+    (print n)
+    (if (= n 0)
+      0
+      (+ 1 (countdown (- n 1))))))
+
+(countdown 2)

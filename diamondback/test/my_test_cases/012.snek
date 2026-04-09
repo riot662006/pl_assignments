@@ -1,0 +1,4 @@
+(fun (just_print x)
+  (print x))
+
+(just_print 42)

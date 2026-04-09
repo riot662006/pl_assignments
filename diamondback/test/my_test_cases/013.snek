@@ -1,0 +1,6 @@
+(fun (block_print x)
+  (block
+    (print x)
+    99))
+
+(block_print 42)

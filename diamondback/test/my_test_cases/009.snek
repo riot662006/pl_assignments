@@ -1,0 +1,6 @@
+(fun (test_print n)
+  (block
+    (print n)
+    5))
+
+(test_print 42)
