@@ -36,6 +36,7 @@ fn ensure_valid_identifier(name: &str, error_msg: &str) -> String {
         || name == "negate"
         || name == "isnum"
         || name == "isbool"
+        || name == "print"
         || name == "set!"
         || name == "block"
         || name == "loop"
@@ -67,6 +68,7 @@ enum Expr {
     UnOp(UnOp, Box<Expr>),
     BinOp(BinOp, Box<Expr>, Box<Expr>),
     Call(String, Vec<Expr>),
+    Print(Box<Expr>),
 }
 
 #[derive(Debug, Clone)]
@@ -235,6 +237,10 @@ fn parse_expr(s: &Sexp) -> Expr {
             // (isbool <expr>)
             [Sexp::Atom(S(op)), e] if op == "isbool" => {
                 Expr::UnOp(UnOp::IsBool, Box::new(parse_expr(e)))
+            }
+            // (print <expr>)
+            [Sexp::Atom(S(op)), e] if op == "print" => {
+                Expr::Print(Box::new(parse_expr(e)))
             }
             // (set! <identifier> <expr>)
             [Sexp::Atom(S(op)), Sexp::Atom(S(name)), expr] if op == "set!" => {
@@ -702,11 +708,50 @@ fn compile_expr(
             instrs.join("\n  ")
         }
 
-        Expr::Call(name, _args) => {
-            panic!(
-                "Function calls not implemented yet: attempted to call {}",
-                name
-            );
+        Expr::Print(subexpr) => {
+            let mut instrs = Vec::new();
+
+            instrs.push(compile_expr(
+                subexpr,
+                env,
+                stack_offset,
+                break_target,
+                label_counter,
+            ));
+
+            // Move the value to rdi (first argument for snek_print)
+            instrs.push("mov rdi, rax".to_string());
+            // Call snek_print
+            instrs.push("call snek_print".to_string());
+            // snek_print returns the value, so rax already has the result
+
+            instrs.join("\n  ")
+        }
+
+        Expr::Call(name, args) => {
+            let mut instrs = Vec::new();
+
+            // Push arguments right-to-left (reverse order)
+            for arg in args.iter().rev() {
+                instrs.push(compile_expr(
+                    arg,
+                    env,
+                    stack_offset,
+                    break_target,
+                    label_counter,
+                ));
+                instrs.push("push rax".to_string());
+            }
+
+            // Call function
+            instrs.push(format!("call fun_{}", name));
+
+            // Clean up stack (each argument is 8 bytes)
+            if !args.is_empty() {
+                instrs.push(format!("add rsp, {}", args.len() as i32 * WORD_SIZE));
+            }
+
+            instrs.join("\n  ")
         }
     }
 }
@@ -724,4 +769,3 @@ pub fn install_compiler_error_hook() {
         eprintln!("compiler error: {}", message);
     }));
 }
-

@@ -10,6 +10,18 @@ extern "C" {
 }
 
 #[no_mangle]
+extern "C" fn snek_print(val: i64) -> i64 {
+    if val == 3 {
+        println!("true");
+    } else if val == 1 {
+        println!("false");
+    } else {
+        println!("{}", val >> 1);
+    }
+    val
+}
+
+#[no_mangle]
 extern "C" fn snek_error(_errcode: i64) -> ! {
     if _errcode == 1 {
         eprintln!("invalid argument");
@@ -20,9 +32,7 @@ extern "C" fn snek_error(_errcode: i64) -> ! {
 }
 
 fn main() {
-    let i: i64 = unsafe {
-        our_code_starts_here()
-    };
+    let i: i64 = unsafe { our_code_starts_here() };
     match i {
         3 => println!("true"),
         1 => println!("false"),
