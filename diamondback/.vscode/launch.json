@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug diamondback",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=diamondback",
+                    "--package=diamondback"
+                ],
+                "filter": {
+                    "name": "diamondback",
+                    "kind": "bin"
+                }
+            },
+            "args": ["--debug", "${workspaceFolder}/test/sample_tests/001.snek"],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

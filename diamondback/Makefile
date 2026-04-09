@@ -20,11 +20,11 @@ RUN_FILES  := $(patsubst %.snek,%.run,$(SNEK_FILES))
 # ---------------------------------------------
 
 # .snek → .s
-test/%.s: test/%.snek src/main.rs
+$(DIR)/%.s: $(DIR)/%.snek src/main.rs
 	cargo run -- $< $@
 
 # .s → .run
-test/%.run: test/%.s runtime/start.rs
+$(DIR)/%.run: $(DIR)/%.s runtime/start.rs
 	nasm -f elf64 $< -o runtime/our_code.o
 	ar rcs runtime/libour_code.a runtime/our_code.o
 	rustc -L runtime/ runtime/start.rs -o $@
