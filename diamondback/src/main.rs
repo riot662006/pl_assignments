@@ -17,7 +17,43 @@ const NUM_SHIFT: i64 = 1;
 const NUM_STEP: i64 = 2;
 const ERR_INVALID_ARGUMENT: i64 = 1;
 
-// Task 1: Update AST Definition
+fn ensure_valid_identifier(name: &str, error_msg: &str) -> String {
+    if name == "true"
+        || name == "false"
+        || name == "let"
+        || name == "add1"
+        || name == "sub1"
+        || name == "negate"
+        || name == "isnum"
+        || name == "isbool"
+        || name == "set!"
+        || name == "block"
+        || name == "loop"
+        || name == "break"
+        || name == "if"
+        || name == "<"
+        || name == ">"
+        || name == "<="
+        || name == ">="
+        || name == "="
+    {
+        panic!("{}: {}", error_msg, name);
+    }
+
+    name.to_string()
+}
+
+struct Program {
+    defns: Vec<Definition>,
+    main: Expr,
+}
+
+struct Definition {
+    name: String,
+    params: Vec<String>,
+    body: Expr,
+}
+
 #[derive(Debug, Clone)]
 enum Expr {
     Num(i32),
@@ -31,6 +67,7 @@ enum Expr {
     If(Box<Expr>, Box<Expr>, Box<Expr>),
     UnOp(UnOp, Box<Expr>),
     BinOp(BinOp, Box<Expr>, Box<Expr>),
+    Call(String, Vec<Expr>),
 }
 
 #[derive(Debug, Clone)]
@@ -54,8 +91,13 @@ enum BinOp {
     Equal,
 }
 
-// Task 2: Extend Parser
 // Concrete Syntax:
+// <program> :=
+//   | <defn>* <expr>
+
+// <defn> :=
+//   | (fun (<identifier> <identifier>*) <expr>)
+
 // <expr> :=
 //   | <number>
 //   | <identifier>
@@ -81,6 +123,67 @@ enum BinOp {
 
 // <identifier> := [a-zA-Z][a-zA-Z0-9]*  (but not reserved words)
 
+fn parse_program(s: &Sexp) -> Program {
+    match s {
+        Sexp::List(items) => {
+            let mut defns = vec![];
+            let mut main_expr = None;
+
+            for item in items {
+                if let Some(defn) = try_parse_defn(item) {
+                    defns.push(defn);
+                } else {
+                    if main_expr.is_some() {
+                        panic!(
+                            "Multiple main expressions found: {:?} and {:?}",
+                            main_expr, item
+                        );
+                    }
+                    main_expr = Some(parse_expr(item));
+                }
+            }
+
+            Program {
+                defns,
+                main: (main_expr.expect("No main expression")),
+            }
+        }
+        _ => panic!("Invalid program: {:?}", s),
+    }
+}
+
+fn try_parse_defn(s: &Sexp) -> Option<Definition> {
+    match s {
+        Sexp::List(vec) => match &vec[..] {
+            // (fun (<identifier> <identifier>*) <expr>)
+            [Sexp::Atom(S(op)), Sexp::List(signature), body] if op == "fun" => match &signature[..]
+            {
+                [Sexp::Atom(S(name)), params @ ..] => {
+                    let param_names: Vec<String> = params
+                        .iter()
+                        .map(|param| match param {
+                            Sexp::Atom(S(param_name)) => {
+                                ensure_valid_identifier(param_name, "Invalid parameter")
+                            }
+                            _ => panic!("Invalid parameter: {:?}", param),
+                        })
+                        .collect();
+
+                    Some(Definition {
+                        name: ensure_valid_identifier(name, "Invalid function name"),
+                        params: param_names,
+                        body: parse_expr(body),
+                    })
+                }
+
+                _ => panic!("Invalid function signature: {:?}", signature),
+            },
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn parse_expr(s: &Sexp) -> Expr {
     match s {
         // <number>
@@ -93,26 +196,8 @@ fn parse_expr(s: &Sexp) -> Expr {
             if name == "false" {
                 return Expr::Bool(false);
             }
-            if name == "let"
-                || name == "add1"
-                || name == "sub1"
-                || name == "negate"
-                || name == "isnum"
-                || name == "isbool"
-                || name == "set!"
-                || name == "block"
-                || name == "loop"
-                || name == "break"
-                || name == "if"
-                || name == "<"
-                || name == ">"
-                || name == "<="
-                || name == ">="
-                || name == "="
-            {
-                panic!("Invalid use of keyword as identifier: {}", name);
-            }
-            Expr::Var(name.to_string())
+
+            Expr::Var(ensure_valid_identifier(name, "Invalid identifier"))
         }
         Sexp::List(vec) => match &vec[..] {
             // (let ((<identifier> <expr>)+) <expr>)
@@ -255,7 +340,36 @@ fn new_label(label_counter: &mut i32, name: &str) -> String {
     format!("{}_{}", name, label_counter)
 }
 
-/// Task 3: Implement Code Generation
+fn compile_program(program: &Program) -> String {
+    let mut label_counter = 0;
+
+    // Generate assembly instructions: Start with empty environment and offset 8
+    let instrs = compile_expr(
+        &program.main,
+        &HashMap::new(),
+        WORD_SIZE,
+        None,
+        &mut label_counter,
+    );
+
+    // Wrap instructions in assembly program template
+    format!(
+        "section .text
+extern snek_error
+global our_code_starts_here
+our_code_starts_here:
+  {}
+  ret
+
+error:
+  mov rdi, {ERR_INVALID_ARGUMENT}
+  sub rsp, {WORD_SIZE}
+  call snek_error
+",
+        instrs
+    )
+}
+
 fn compile_expr(
     e: &Expr,
     env: &HashMap<String, i32>,
@@ -537,37 +651,14 @@ fn try_main() -> std::io::Result<()> {
     let mut in_contents = String::new();
     in_file.read_to_string(&mut in_contents)?;
 
-    // Parse S-expression from text
-    let sexp = parse(&in_contents).unwrap_or_else(|e| {
-        panic!("Parse error: {}", e)
-    });
-    
+    // Parse S-expression from text: allow multiple top-level expressions by wrapping in parens
+    let sexp = parse(&format!("({})", &in_contents)).unwrap_or_else(|e| panic!("Parse error: {}", e));
+
     // Convert S-expression to our AST
-    let expr = parse_expr(&sexp);
+    let ast = parse_program(&sexp);
 
-    // Start with empty environment and offset 8
-    let env = HashMap::new();
-    let mut label_counter = 0;
-    
-    // Generate assembly instructions
-    let instrs = compile_expr(&expr, &env, WORD_SIZE, None, &mut label_counter);
-    
-    // Wrap instructions in assembly program template
-    let asm_program = format!(
-        "section .text
-extern snek_error
-global our_code_starts_here
-our_code_starts_here:
-  {}
-  ret
-
-error:
-  mov rdi, {ERR_INVALID_ARGUMENT}
-  sub rsp, {WORD_SIZE}
-  call snek_error
-",
-        instrs
-    );
+    // Generate assembly
+    let asm_program = compile_program(&ast);
 
     // Write output assembly file
     let mut out_file = File::create(out_name)?;
