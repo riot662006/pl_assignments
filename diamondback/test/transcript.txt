@@ -1,0 +1,1041 @@
+> make test/my_test_cases/001.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+cargo run -- test/my_test_cases/001.snek test/my_test_cases/001.s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running `target/debug/diamondback test/my_test_cases/001.snek test/my_test_cases/001.s`
+nasm -f elf64 test/my_test_cases/001.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/001.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+
+> cat test/my_test_cases/001.s
+section .text
+extern snek_error
+extern snek_print
+global our_code_starts_here
+our_code_starts_here:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  mov rax, 1
+  sal rax, 1
+  mov [rbp - 8], rax
+  mov rax, [rbp - 8]
+  mov [rbp - 16], rax
+  mov rax, 4
+  sal rax, 1
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  mov rbx, [rbp - 16]
+  mov rcx, rbx
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  sar rax, 1
+  sar rbx, 1
+  add rax, rbx
+  sal rax, 1
+  mov rsp, rbp
+  pop rbp
+  ret
+
+  fun_not_used:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  mov rax, 12
+  sal rax, 1
+  mov rsp, rbp
+  pop rbp
+  ret
+
+error:
+  mov rdi, 1
+  sub rsp, 8
+  call snek_error
+
+> ./test/my_test_cases/001.run
+5
+
+
+> cat test/my_test_cases/002.snek
+(block (print 10) (print 20) 42)
+> make test/my_test_cases/002.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+nasm -f elf64 test/my_test_cases/002.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/002.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+
+> cat test/my_test_cases/002.s
+section .text
+extern snek_error
+extern snek_print
+global our_code_starts_here
+our_code_starts_here:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  mov rax, 10
+  sal rax, 1
+  mov rdi, rax
+  call snek_print
+  mov rax, 20
+  sal rax, 1
+  mov rdi, rax
+  call snek_print
+  mov rax, 42
+  sal rax, 1
+  mov rsp, rbp
+  pop rbp
+  ret
+
+  
+
+error:
+  mov rdi, 1
+  sub rsp, 8
+  call snek_error
+
+> ./test/my_test_cases/002.run
+10
+20
+42
+
+
+> cat test/my_test_cases/003.snek
+(fun (double x) (+ x x))
+
+(double 5)
+> make test/my_test_cases/003.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+cargo run -- test/my_test_cases/003.snek test/my_test_cases/003.s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `target/debug/diamondback test/my_test_cases/003.snek test/my_test_cases/003.s`
+nasm -f elf64 test/my_test_cases/003.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/003.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+
+> cat test/my_test_cases/003.s
+section .text
+extern snek_error
+extern snek_print
+global our_code_starts_here
+our_code_starts_here:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  sub rsp, 8
+  mov rax, 5
+  sal rax, 1
+  push rax
+  call fun_double
+  add rsp, 16
+  mov rsp, rbp
+  pop rbp
+  ret
+
+  fun_double:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  mov rax, [rbp + 16]
+  mov [rbp - 8], rax
+  mov rax, [rbp + 16]
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  mov rbx, [rbp - 8]
+  mov rcx, rbx
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  sar rax, 1
+  sar rbx, 1
+  add rax, rbx
+  sal rax, 1
+  mov rsp, rbp
+  pop rbp
+  ret
+
+error:
+  mov rdi, 1
+  sub rsp, 8
+  call snek_error
+
+> ./test/my_test_cases/003.run
+10
+
+
+> cat test/my_test_cases/004.snek
+(fun (add3 x y z) (+ (+ x y) z))
+
+(add3 1 2 3)
+> make test/my_test_cases/004.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+cargo run -- test/my_test_cases/004.snek test/my_test_cases/004.s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `target/debug/diamondback test/my_test_cases/004.snek test/my_test_cases/004.s`
+nasm -f elf64 test/my_test_cases/004.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/004.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+
+> cat test/my_test_cases/004.s
+section .text
+extern snek_error
+extern snek_print
+global our_code_starts_here
+our_code_starts_here:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  sub rsp, 8
+  mov rax, 3
+  sal rax, 1
+  push rax
+  mov rax, 2
+  sal rax, 1
+  push rax
+  mov rax, 1
+  sal rax, 1
+  push rax
+  call fun_add3
+  add rsp, 32
+  mov rsp, rbp
+  pop rbp
+  ret
+
+  fun_add3:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  mov rax, [rbp + 16]
+  mov [rbp - 8], rax
+  mov rax, [rbp + 24]
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  mov rbx, [rbp - 8]
+  mov rcx, rbx
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  sar rax, 1
+  sar rbx, 1
+  add rax, rbx
+  sal rax, 1
+  mov [rbp - 8], rax
+  mov rax, [rbp + 32]
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  mov rbx, [rbp - 8]
+  mov rcx, rbx
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  sar rax, 1
+  sar rbx, 1
+  add rax, rbx
+  sal rax, 1
+  mov rsp, rbp
+  pop rbp
+  ret
+
+error:
+  mov rdi, 1
+  sub rsp, 8
+  call snek_error
+
+> ./test/my_test_cases/004.run
+6
+
+
+> cat test/my_test_cases/005.snek
+(fun (factorial n)
+  (if (= n 1)
+    1
+    (* n (factorial (- n 1)))))
+
+(factorial 5)
+> make test/my_test_cases/005.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+cargo run -- test/my_test_cases/005.snek test/my_test_cases/005.s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `target/debug/diamondback test/my_test_cases/005.snek test/my_test_cases/005.s`
+nasm -f elf64 test/my_test_cases/005.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/005.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+
+> cat test/my_test_cases/005.s
+section .text
+extern snek_error
+extern snek_print
+global our_code_starts_here
+our_code_starts_here:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  sub rsp, 8
+  mov rax, 5
+  sal rax, 1
+  push rax
+  call fun_factorial
+  add rsp, 16
+  mov rsp, rbp
+  pop rbp
+  ret
+
+  fun_factorial:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  mov rax, [rbp + 16]
+  mov [rbp - 8], rax
+  mov rax, 1
+  sal rax, 1
+  mov rbx, [rbp - 8]
+  mov rcx, rbx
+  xor rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  cmp [rbp - 8], rax
+  je eq_true_3
+  mov rax, 1
+  jmp eq_done_4
+  eq_true_3:
+  mov rax, 3
+  eq_done_4:
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 1
+  jne error
+  cmp rax, 1
+  je if_else_1
+  mov rax, 1
+  sal rax, 1
+  jmp if_done_2
+  if_else_1:
+  mov rax, [rbp + 16]
+  mov [rbp - 8], rax
+  sub rsp, 8
+  mov rax, [rbp + 16]
+  mov [rbp - 16], rax
+  mov rax, 1
+  sal rax, 1
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  mov rbx, [rbp - 16]
+  mov rcx, rbx
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  sar rax, 1
+  sar rbx, 1
+  sub rbx, rax
+  mov rax, rbx
+  sal rax, 1
+  push rax
+  call fun_factorial
+  add rsp, 16
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  mov rbx, [rbp - 8]
+  mov rcx, rbx
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  sar rax, 1
+  sar rbx, 1
+  imul rax, rbx
+  sal rax, 1
+  if_done_2:
+  mov rsp, rbp
+  pop rbp
+  ret
+
+error:
+  mov rdi, 1
+  sub rsp, 8
+  call snek_error
+
+> ./test/my_test_cases/005.run
+120
+
+
+> cat test/my_test_cases/006.snek
+(fun (countdown n)
+  (if (= n 0)
+    0
+    (+ 1 (countdown (- n 1)))))
+
+(countdown 3)
+> make test/my_test_cases/006.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+cargo run -- test/my_test_cases/006.snek test/my_test_cases/006.s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `target/debug/diamondback test/my_test_cases/006.snek test/my_test_cases/006.s`
+nasm -f elf64 test/my_test_cases/006.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/006.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+
+> cat test/my_test_cases/006.s
+section .text
+extern snek_error
+extern snek_print
+global our_code_starts_here
+our_code_starts_here:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  sub rsp, 8
+  mov rax, 3
+  sal rax, 1
+  push rax
+  call fun_countdown
+  add rsp, 16
+  mov rsp, rbp
+  pop rbp
+  ret
+
+  fun_countdown:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  mov rax, [rbp + 16]
+  mov [rbp - 8], rax
+  mov rax, 0
+  sal rax, 1
+  mov rbx, [rbp - 8]
+  mov rcx, rbx
+  xor rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  cmp [rbp - 8], rax
+  je eq_true_3
+  mov rax, 1
+  jmp eq_done_4
+  eq_true_3:
+  mov rax, 3
+  eq_done_4:
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 1
+  jne error
+  cmp rax, 1
+  je if_else_1
+  mov rax, 0
+  sal rax, 1
+  jmp if_done_2
+  if_else_1:
+  mov rax, 1
+  sal rax, 1
+  mov [rbp - 8], rax
+  sub rsp, 8
+  mov rax, [rbp + 16]
+  mov [rbp - 16], rax
+  mov rax, 1
+  sal rax, 1
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  mov rbx, [rbp - 16]
+  mov rcx, rbx
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  sar rax, 1
+  sar rbx, 1
+  sub rbx, rax
+  mov rax, rbx
+  sal rax, 1
+  push rax
+  call fun_countdown
+  add rsp, 16
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  mov rbx, [rbp - 8]
+  mov rcx, rbx
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  sar rax, 1
+  sar rbx, 1
+  add rax, rbx
+  sal rax, 1
+  if_done_2:
+  mov rsp, rbp
+  pop rbp
+  ret
+
+error:
+  mov rdi, 1
+  sub rsp, 8
+  call snek_error
+
+> ./test/my_test_cases/006.run
+3
+
+
+> cat test/my_test_cases/007.snek
+(fun (factorial n)
+  (block
+    (print n)
+    (if (= n 1)
+      1
+      (* n (factorial (- n 1))))))
+
+(factorial 5)
+> make test/my_test_cases/007.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+cargo run -- test/my_test_cases/007.snek test/my_test_cases/007.s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `target/debug/diamondback test/my_test_cases/007.snek test/my_test_cases/007.s`
+nasm -f elf64 test/my_test_cases/007.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/007.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+
+> cat test/my_test_cases/007.s
+section .text
+extern snek_error
+extern snek_print
+global our_code_starts_here
+our_code_starts_here:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  sub rsp, 8
+  mov rax, 5
+  sal rax, 1
+  push rax
+  call fun_factorial
+  add rsp, 16
+  mov rsp, rbp
+  pop rbp
+  ret
+
+  fun_factorial:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  mov rax, [rbp + 16]
+  mov rdi, rax
+  call snek_print
+  mov rax, [rbp + 16]
+  mov [rbp - 8], rax
+  mov rax, 1
+  sal rax, 1
+  mov rbx, [rbp - 8]
+  mov rcx, rbx
+  xor rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  cmp [rbp - 8], rax
+  je eq_true_3
+  mov rax, 1
+  jmp eq_done_4
+  eq_true_3:
+  mov rax, 3
+  eq_done_4:
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 1
+  jne error
+  cmp rax, 1
+  je if_else_1
+  mov rax, 1
+  sal rax, 1
+  jmp if_done_2
+  if_else_1:
+  mov rax, [rbp + 16]
+  mov [rbp - 8], rax
+  sub rsp, 8
+  mov rax, [rbp + 16]
+  mov [rbp - 16], rax
+  mov rax, 1
+  sal rax, 1
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  mov rbx, [rbp - 16]
+  mov rcx, rbx
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  sar rax, 1
+  sar rbx, 1
+  sub rbx, rax
+  mov rax, rbx
+  sal rax, 1
+  push rax
+  call fun_factorial
+  add rsp, 16
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  mov rbx, [rbp - 8]
+  mov rcx, rbx
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  sar rax, 1
+  sar rbx, 1
+  imul rax, rbx
+  sal rax, 1
+  if_done_2:
+  mov rsp, rbp
+  pop rbp
+  ret
+
+error:
+  mov rdi, 1
+  sub rsp, 8
+  call snek_error
+
+> ./test/my_test_cases/007.run
+5
+4
+3
+2
+1
+120
+
+
+> cat test/my_test_cases/008.snek
+(fun (countdown n)
+  (block
+    (print n)
+    (if (= n 0)
+      0
+      (+ 1 (countdown (- n 1))))))
+
+(countdown 2)
+> make test/my_test_cases/008.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+cargo run -- test/my_test_cases/008.snek test/my_test_cases/008.s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `target/debug/diamondback test/my_test_cases/008.snek test/my_test_cases/008.s`
+nasm -f elf64 test/my_test_cases/008.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/008.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+
+> cat test/my_test_cases/008.s
+section .text
+extern snek_error
+extern snek_print
+global our_code_starts_here
+our_code_starts_here:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  sub rsp, 8
+  mov rax, 2
+  sal rax, 1
+  push rax
+  call fun_countdown
+  add rsp, 16
+  mov rsp, rbp
+  pop rbp
+  ret
+
+  fun_countdown:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  mov rax, [rbp + 16]
+  mov rdi, rax
+  call snek_print
+  mov rax, [rbp + 16]
+  mov [rbp - 8], rax
+  mov rax, 0
+  sal rax, 1
+  mov rbx, [rbp - 8]
+  mov rcx, rbx
+  xor rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  cmp [rbp - 8], rax
+  je eq_true_3
+  mov rax, 1
+  jmp eq_done_4
+  eq_true_3:
+  mov rax, 3
+  eq_done_4:
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 1
+  jne error
+  cmp rax, 1
+  je if_else_1
+  mov rax, 0
+  sal rax, 1
+  jmp if_done_2
+  if_else_1:
+  mov rax, 1
+  sal rax, 1
+  mov [rbp - 8], rax
+  sub rsp, 8
+  mov rax, [rbp + 16]
+  mov [rbp - 16], rax
+  mov rax, 1
+  sal rax, 1
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  mov rbx, [rbp - 16]
+  mov rcx, rbx
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  sar rax, 1
+  sar rbx, 1
+  sub rbx, rax
+  mov rax, rbx
+  sal rax, 1
+  push rax
+  call fun_countdown
+  add rsp, 16
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  mov rbx, [rbp - 8]
+  mov rcx, rbx
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  sar rax, 1
+  sar rbx, 1
+  add rax, rbx
+  sal rax, 1
+  if_done_2:
+  mov rsp, rbp
+  pop rbp
+  ret
+
+error:
+  mov rdi, 1
+  sub rsp, 8
+  call snek_error
+
+> ./test/my_test_cases/008.run
+2
+1
+0
+2
+
+
+> cat test/my_test_cases/009.snek
+(fun (test_print n)
+  (block
+    (print n)
+    5))
+
+(test_print 42)
+> make test/my_test_cases/009.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+cargo run -- test/my_test_cases/009.snek test/my_test_cases/009.s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `target/debug/diamondback test/my_test_cases/009.snek test/my_test_cases/009.s`
+nasm -f elf64 test/my_test_cases/009.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/009.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+
+> cat test/my_test_cases/009.s
+section .text
+extern snek_error
+extern snek_print
+global our_code_starts_here
+our_code_starts_here:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  sub rsp, 8
+  mov rax, 42
+  sal rax, 1
+  push rax
+  call fun_test_print
+  add rsp, 16
+  mov rsp, rbp
+  pop rbp
+  ret
+
+  fun_test_print:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  mov rax, [rbp + 16]
+  mov rdi, rax
+  call snek_print
+  mov rax, 5
+  sal rax, 1
+  mov rsp, rbp
+  pop rbp
+  ret
+
+error:
+  mov rdi, 1
+  sub rsp, 8
+  call snek_error
+
+> ./test/my_test_cases/009.run
+42
+5
+
+
+> cat test/my_test_cases/010.snek
+(fun (return_five x)
+  x)
+
+(return_five 42)
+> make test/my_test_cases/010.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+cargo run -- test/my_test_cases/010.snek test/my_test_cases/010.s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `target/debug/diamondback test/my_test_cases/010.snek test/my_test_cases/010.s`
+nasm -f elf64 test/my_test_cases/010.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/010.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+
+> cat test/my_test_cases/010.s
+section .text
+extern snek_error
+extern snek_print
+global our_code_starts_here
+our_code_starts_here:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  sub rsp, 8
+  mov rax, 42
+  sal rax, 1
+  push rax
+  call fun_return_five
+  add rsp, 16
+  mov rsp, rbp
+  pop rbp
+  ret
+
+  fun_return_five:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  mov rax, [rbp + 16]
+  mov rsp, rbp
+  pop rbp
+  ret
+
+error:
+  mov rdi, 1
+  sub rsp, 8
+  call snek_error
+
+> ./test/my_test_cases/010.run
+42
+
+
+> cat test/my_test_cases/011.snek
+(fun (add3 x y z) (+ (+ x y) z))
+
+(let ((a 10) (b (add3 1 2 3)) (c -5)) (let ((sum (add3 a b c))) (block (print sum) (= sum 11))))
+> make test/my_test_cases/011.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+cargo run -- test/my_test_cases/011.snek test/my_test_cases/011.s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `target/debug/diamondback test/my_test_cases/011.snek test/my_test_cases/011.s`
+nasm -f elf64 test/my_test_cases/011.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/011.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+
+> cat test/my_test_cases/011.s
+section .text
+extern snek_error
+extern snek_print
+global our_code_starts_here
+our_code_starts_here:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 48
+  mov rax, 10
+  sal rax, 1
+  mov [rbp - 8], rax
+  sub rsp, 8
+  mov rax, 3
+  sal rax, 1
+  push rax
+  mov rax, 2
+  sal rax, 1
+  push rax
+  mov rax, 1
+  sal rax, 1
+  push rax
+  call fun_add3
+  add rsp, 32
+  mov [rbp - 16], rax
+  mov rax, -5
+  sal rax, 1
+  mov [rbp - 24], rax
+  sub rsp, 8
+  mov rax, [rbp - 24]
+  push rax
+  mov rax, [rbp - 16]
+  push rax
+  mov rax, [rbp - 8]
+  push rax
+  call fun_add3
+  add rsp, 32
+  mov [rbp - 32], rax
+  mov rax, [rbp - 32]
+  mov rdi, rax
+  call snek_print
+  mov rax, [rbp - 32]
+  mov [rbp - 40], rax
+  mov rax, 11
+  sal rax, 1
+  mov rbx, [rbp - 40]
+  mov rcx, rbx
+  xor rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  cmp [rbp - 40], rax
+  je eq_true_1
+  mov rax, 1
+  jmp eq_done_2
+  eq_true_1:
+  mov rax, 3
+  eq_done_2:
+  mov rsp, rbp
+  pop rbp
+  ret
+
+  fun_add3:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  mov rax, [rbp + 16]
+  mov [rbp - 8], rax
+  mov rax, [rbp + 24]
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  mov rbx, [rbp - 8]
+  mov rcx, rbx
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  sar rax, 1
+  sar rbx, 1
+  add rax, rbx
+  sal rax, 1
+  mov [rbp - 8], rax
+  mov rax, [rbp + 32]
+  mov rcx, rax
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  mov rbx, [rbp - 8]
+  mov rcx, rbx
+  and rcx, 1
+  cmp rcx, 0
+  jne error
+  sar rax, 1
+  sar rbx, 1
+  add rax, rbx
+  sal rax, 1
+  mov rsp, rbp
+  pop rbp
+  ret
+
+error:
+  mov rdi, 1
+  sub rsp, 8
+  call snek_error
+
+> ./test/my_test_cases/011.run
+11
+true
+
+
+> cat test/my_test_cases/012.snek
+(fun (just_print x)
+  (print x))
+
+(just_print 42)
+> make test/my_test_cases/012.run
+make[1]: Entering directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+cargo run -- test/my_test_cases/012.snek test/my_test_cases/012.s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `target/debug/diamondback test/my_test_cases/012.snek test/my_test_cases/012.s`
+nasm -f elf64 test/my_test_cases/012.s -o runtime/our_code.o
+ar rcs runtime/libour_code.a runtime/our_code.o
+rustc -L runtime/ runtime/start.rs -o test/my_test_cases/012.run
+make[1]: Leaving directory '/mnt/c/users/ibekw/Documents/_Projects_/Rust Projs/pl_assignments/diamondback'
+
+> cat test/my_test_cases/012.s
+section .text
+extern snek_error
+extern snek_print
+global our_code_starts_here
+our_code_starts_here:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  sub rsp, 8
+  mov rax, 42
+  sal rax, 1
+  push rax
+  call fun_just_print
+  add rsp, 16
+  mov rsp, rbp
+  pop rbp
+  ret
+
+  fun_just_print:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 32
+  mov rax, [rbp + 16]
+  mov rdi, rax
+  call snek_print
+  mov rsp, rbp
+  pop rbp
+  ret
+
+error:
+  mov rdi, 1
+  sub rsp, 8
+  call snek_error
+
+> ./test/my_test_cases/012.run
+42
+42

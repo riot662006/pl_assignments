@@ -1,0 +1,6 @@
+(fun (compute x)
+  (let ((y (* x 2)))
+    (let ((z (+ y 1)))
+      (- z x))))
+
+(compute 10)
