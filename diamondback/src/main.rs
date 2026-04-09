@@ -1,9 +1,9 @@
-use sexp::*;
 use sexp::Atom::*;
+use sexp::*;
+use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
-use std::collections::HashMap;
 use std::panic;
 
 const NUM_TAG: i64 = 0;
@@ -120,6 +120,7 @@ enum BinOp {
 //   | (<= <expr> <expr>)
 //   | (>= <expr> <expr>)
 //   | (= <expr> <expr>)
+//   | (<identifier> <expr>*)
 
 // <identifier> := [a-zA-Z][a-zA-Z0-9]*  (but not reserved words)
 
@@ -201,108 +202,115 @@ fn parse_expr(s: &Sexp) -> Expr {
         }
         Sexp::List(vec) => match &vec[..] {
             // (let ((<identifier> <expr>)+) <expr>)
-            [Sexp::Atom(S(op)), Sexp::List(bindings), body]
-                if op == "let" => {
-                    let parsed_bindings: Vec<(String, Expr)> = bindings.iter().map(|binding| {
-                        match binding {
-                            Sexp::List(pair) => match &pair[..] {
-                                [Sexp::Atom(S(id)), expr] => {
-                                    (id.to_string(), parse_expr(expr))
-                                },
-                                _ => panic!("Invalid binding: {:?}", pair),
-                            }
-                            _ => panic!("Invalid binding: {:?}", binding),
-                        }
-                    }).collect();
+            [Sexp::Atom(S(op)), Sexp::List(bindings), body] if op == "let" => {
+                let parsed_bindings: Vec<(String, Expr)> = bindings
+                    .iter()
+                    .map(|binding| match binding {
+                        Sexp::List(pair) => match &pair[..] {
+                            [Sexp::Atom(S(id)), expr] => (id.to_string(), parse_expr(expr)),
+                            _ => panic!("Invalid binding: {:?}", pair),
+                        },
+                        _ => panic!("Invalid binding: {:?}", binding),
+                    })
+                    .collect();
 
-                    Expr::Let(parsed_bindings, Box::new(parse_expr(body)))
-                },
+                Expr::Let(parsed_bindings, Box::new(parse_expr(body)))
+            }
 
             // (add1 <expr>)
             [Sexp::Atom(S(op)), e] if op == "add1" => {
                 Expr::UnOp(UnOp::Add1, Box::new(parse_expr(e)))
-            },
+            }
             // (sub1 <expr>)
             [Sexp::Atom(S(op)), e] if op == "sub1" => {
                 Expr::UnOp(UnOp::Sub1, Box::new(parse_expr(e)))
-            },
+            }
             // (negate <expr>)
             [Sexp::Atom(S(op)), e] if op == "negate" => {
                 Expr::UnOp(UnOp::Negate, Box::new(parse_expr(e)))
-            },
+            }
             // (isnum <expr>)
             [Sexp::Atom(S(op)), e] if op == "isnum" => {
                 Expr::UnOp(UnOp::IsNum, Box::new(parse_expr(e)))
-            },
+            }
             // (isbool <expr>)
             [Sexp::Atom(S(op)), e] if op == "isbool" => {
                 Expr::UnOp(UnOp::IsBool, Box::new(parse_expr(e)))
-            },
+            }
             // (set! <identifier> <expr>)
             [Sexp::Atom(S(op)), Sexp::Atom(S(name)), expr] if op == "set!" => {
                 Expr::Set(name.to_string(), Box::new(parse_expr(expr)))
-            },
+            }
             // (block <expr>+)
             [Sexp::Atom(S(op)), exprs @ ..] if op == "block" => {
                 if exprs.is_empty() {
                     panic!("Invalid block: expected at least one expression");
                 }
                 Expr::Block(exprs.iter().map(parse_expr).collect())
-            },
+            }
             // (loop <expr>)
-            [Sexp::Atom(S(op)), expr] if op == "loop" => {
-                Expr::Loop(Box::new(parse_expr(expr)))
-            },
+            [Sexp::Atom(S(op)), expr] if op == "loop" => Expr::Loop(Box::new(parse_expr(expr))),
             // (break <expr>)
-            [Sexp::Atom(S(op)), expr] if op == "break" => {
-                Expr::Break(Box::new(parse_expr(expr)))
-            },
+            [Sexp::Atom(S(op)), expr] if op == "break" => Expr::Break(Box::new(parse_expr(expr))),
             // (if <expr> <expr> <expr>)
-            [Sexp::Atom(S(op)), condition, then_expr, else_expr] if op == "if" => {
-                Expr::If(
-                    Box::new(parse_expr(condition)),
-                    Box::new(parse_expr(then_expr)),
-                    Box::new(parse_expr(else_expr)),
-                )
-            },
+            [Sexp::Atom(S(op)), condition, then_expr, else_expr] if op == "if" => Expr::If(
+                Box::new(parse_expr(condition)),
+                Box::new(parse_expr(then_expr)),
+                Box::new(parse_expr(else_expr)),
+            ),
 
             // (+ <expr> <expr>)
-            [Sexp::Atom(S(op)), e1, e2] if op == "+" => {
-                Expr::BinOp(BinOp::Plus, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
-            },
+            [Sexp::Atom(S(op)), e1, e2] if op == "+" => Expr::BinOp(
+                BinOp::Plus,
+                Box::new(parse_expr(e1)),
+                Box::new(parse_expr(e2)),
+            ),
             // (- <expr> <expr>)
-            [Sexp::Atom(S(op)), e1, e2] if op == "-" => {
-                Expr::BinOp(BinOp::Minus, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
-            },
+            [Sexp::Atom(S(op)), e1, e2] if op == "-" => Expr::BinOp(
+                BinOp::Minus,
+                Box::new(parse_expr(e1)),
+                Box::new(parse_expr(e2)),
+            ),
             // (* <expr> <expr>)
-            [Sexp::Atom(S(op)), e1, e2] if op == "*" => {
-                Expr::BinOp(BinOp::Times, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
-            },
+            [Sexp::Atom(S(op)), e1, e2] if op == "*" => Expr::BinOp(
+                BinOp::Times,
+                Box::new(parse_expr(e1)),
+                Box::new(parse_expr(e2)),
+            ),
             // (< <expr> <expr>)
-            [Sexp::Atom(S(op)), e1, e2] if op == "<" => {
-                Expr::BinOp(BinOp::Less, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
-            },
+            [Sexp::Atom(S(op)), e1, e2] if op == "<" => Expr::BinOp(
+                BinOp::Less,
+                Box::new(parse_expr(e1)),
+                Box::new(parse_expr(e2)),
+            ),
             // (> <expr> <expr>)
-            [Sexp::Atom(S(op)), e1, e2] if op == ">" => {
-                Expr::BinOp(BinOp::Greater, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
-            },
+            [Sexp::Atom(S(op)), e1, e2] if op == ">" => Expr::BinOp(
+                BinOp::Greater,
+                Box::new(parse_expr(e1)),
+                Box::new(parse_expr(e2)),
+            ),
             // (<= <expr> <expr>)
-            [Sexp::Atom(S(op)), e1, e2] if op == "<=" => {
-                Expr::BinOp(BinOp::LessEqual, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
-            },
+            [Sexp::Atom(S(op)), e1, e2] if op == "<=" => Expr::BinOp(
+                BinOp::LessEqual,
+                Box::new(parse_expr(e1)),
+                Box::new(parse_expr(e2)),
+            ),
             // (>= <expr> <expr>)
-            [Sexp::Atom(S(op)), e1, e2] if op == ">=" => {
-                Expr::BinOp(BinOp::GreaterEqual, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
-            },
+            [Sexp::Atom(S(op)), e1, e2] if op == ">=" => Expr::BinOp(
+                BinOp::GreaterEqual,
+                Box::new(parse_expr(e1)),
+                Box::new(parse_expr(e2)),
+            ),
             // (= <expr> <expr>)
-            [Sexp::Atom(S(op)), e1, e2] if op == "=" => {
-                Expr::BinOp(BinOp::Equal, Box::new(parse_expr(e1)), Box::new(parse_expr(e2)))
-            },
+            [Sexp::Atom(S(op)), e1, e2] if op == "=" => Expr::BinOp(
+                BinOp::Equal,
+                Box::new(parse_expr(e1)),
+                Box::new(parse_expr(e2)),
+            ),
 
             _ => panic!("Invalid expression: {:?}", vec),
         },
         //       For add1: [Sexp::Atom(S(op)), e] if op == "add1" => ...
-        
         _ => panic!("Invalid expression: {:?}", s),
     }
 }
@@ -384,13 +392,11 @@ fn compile_expr(
         Expr::Bool(true) => format!("mov rax, {}", TRUE_VAL),
         Expr::Bool(false) => format!("mov rax, {}", FALSE_VAL),
 
-        Expr::Var(name) => {
-            match env.get(name) {
-                Some(offset) => format!("mov rax, [rsp - {}]", offset),
-                None => panic!("Unbounded variable: {}", name),
-            }
+        Expr::Var(name) => match env.get(name) {
+            Some(offset) => format!("mov rax, [rsp - {}]", offset),
+            None => panic!("Unbounded variable: {}", name),
         },
-        
+
         Expr::Let(bindings, body) => {
             let mut instrs = Vec::new();
             let mut new_env = env.clone();
@@ -400,9 +406,15 @@ fn compile_expr(
                 if bindings.iter().filter(|(n, _)| n == name).count() > 1 {
                     panic!("Duplicate binding: {}", name);
                 }
-                
+
                 // Compile the expression
-                instrs.push(compile_expr(expr, &env, current_offset, break_target, label_counter));
+                instrs.push(compile_expr(
+                    expr,
+                    &env,
+                    current_offset,
+                    break_target,
+                    label_counter,
+                ));
 
                 // Store the result in the environment
                 instrs.push(format!("mov [rsp - {}], rax", current_offset));
@@ -414,10 +426,16 @@ fn compile_expr(
             }
 
             // Compile the body
-            instrs.push(compile_expr(body, &new_env, current_offset, break_target, label_counter));
+            instrs.push(compile_expr(
+                body,
+                &new_env,
+                current_offset,
+                break_target,
+                label_counter,
+            ));
 
             instrs.join("\n  ")
-        },
+        }
 
         Expr::Set(name, expr) => {
             let offset = match env.get(name) {
@@ -426,21 +444,33 @@ fn compile_expr(
             };
             let mut instrs = Vec::new();
 
-            instrs.push(compile_expr(expr, env, stack_offset, break_target, label_counter));
+            instrs.push(compile_expr(
+                expr,
+                env,
+                stack_offset,
+                break_target,
+                label_counter,
+            ));
             instrs.push(format!("mov [rsp - {}], rax", offset));
 
             instrs.join("\n  ")
-        },
+        }
 
         Expr::Block(exprs) => {
             let mut instrs = Vec::new();
 
             for expr in exprs {
-                instrs.push(compile_expr(expr, env, stack_offset, break_target, label_counter));
+                instrs.push(compile_expr(
+                    expr,
+                    env,
+                    stack_offset,
+                    break_target,
+                    label_counter,
+                ));
             }
 
             instrs.join("\n  ")
-        },
+        }
 
         Expr::Loop(expr) => {
             let loop_start = new_label(label_counter, "loop_start");
@@ -448,12 +478,18 @@ fn compile_expr(
             let mut instrs = Vec::new();
 
             instrs.push(format!("{}:", loop_start));
-            instrs.push(compile_expr(expr, env, stack_offset, Some(&loop_end), label_counter));
+            instrs.push(compile_expr(
+                expr,
+                env,
+                stack_offset,
+                Some(&loop_end),
+                label_counter,
+            ));
             instrs.push(format!("jmp {}", loop_start));
             instrs.push(format!("{}:", loop_end));
 
             instrs.join("\n  ")
-        },
+        }
 
         Expr::Break(expr) => {
             let target = match break_target {
@@ -462,11 +498,17 @@ fn compile_expr(
             };
             let mut instrs = Vec::new();
 
-            instrs.push(compile_expr(expr, env, stack_offset, break_target, label_counter));
+            instrs.push(compile_expr(
+                expr,
+                env,
+                stack_offset,
+                break_target,
+                label_counter,
+            ));
             instrs.push(format!("jmp {}", target));
 
             instrs.join("\n  ")
-        },
+        }
 
         Expr::If(condition, then_expr, else_expr) => {
             let else_label = new_label(label_counter, "if_else");
@@ -474,31 +516,55 @@ fn compile_expr(
             let mut instrs = Vec::new();
 
             // Evaluate the condition and ensure it produced a boolean.
-            instrs.push(compile_expr(condition, env, stack_offset, break_target, label_counter));
+            instrs.push(compile_expr(
+                condition,
+                env,
+                stack_offset,
+                break_target,
+                label_counter,
+            ));
             instrs.push(check_boolean("rax"));
 
             // false is tagged as FALSE_VAL, so jump to the else branch in that case.
             instrs.push(format!("cmp rax, {}", FALSE_VAL));
             instrs.push(format!("je {}", else_label));
 
-            instrs.push(compile_expr(then_expr, env, stack_offset, break_target, label_counter));
+            instrs.push(compile_expr(
+                then_expr,
+                env,
+                stack_offset,
+                break_target,
+                label_counter,
+            ));
             instrs.push(format!("jmp {}", done_label));
 
             instrs.push(format!("{}:", else_label));
-            instrs.push(compile_expr(else_expr, env, stack_offset, break_target, label_counter));
+            instrs.push(compile_expr(
+                else_expr,
+                env,
+                stack_offset,
+                break_target,
+                label_counter,
+            ));
             instrs.push(format!("{}:", done_label));
 
             instrs.join("\n  ")
-        },
+        }
 
         Expr::UnOp(op, subexpr) => {
             let mut instrs = Vec::new();
 
-            instrs.push(compile_expr(subexpr, env, stack_offset, break_target, label_counter));
+            instrs.push(compile_expr(
+                subexpr,
+                env,
+                stack_offset,
+                break_target,
+                label_counter,
+            ));
             match op {
                 UnOp::Add1 | UnOp::Sub1 | UnOp::Negate => {
                     instrs.push(check_number("rax"));
-                    
+
                     let op_instr = match op {
                         UnOp::Add1 => &format!("add rax, {}", NUM_STEP),
                         UnOp::Sub1 => &format!("sub rax, {}", NUM_STEP),
@@ -509,7 +575,7 @@ fn compile_expr(
                     instrs.push(op_instr.to_string());
                 }
                 UnOp::IsNum | UnOp::IsBool => {
-                    let true_label; 
+                    let true_label;
                     let done_label;
 
                     match op {
@@ -527,7 +593,7 @@ fn compile_expr(
                         }
                         _ => unreachable!(),
                     }
-                    
+
                     // If the value matches the expected type, jump to the true case. Otherwise, set rax to false and jump to done.
                     instrs.push(format!("je {}", true_label));
                     instrs.push(format!("mov rax, {}", FALSE_VAL));
@@ -539,20 +605,32 @@ fn compile_expr(
             }
 
             instrs.join("\n  ")
-        },
+        }
 
         Expr::BinOp(op, e1, e2) => {
             let mut instrs = Vec::new();
-            
+
             // Evaluate left operand
-            instrs.push(compile_expr(e1, env, stack_offset, break_target, label_counter));
-            
+            instrs.push(compile_expr(
+                e1,
+                env,
+                stack_offset,
+                break_target,
+                label_counter,
+            ));
+
             // Save left operand on stack
             instrs.push(format!("mov [rsp - {}], rax", stack_offset));
-            
+
             // Evaluate right operand
-            instrs.push(compile_expr(e2, env, stack_offset + WORD_SIZE, break_target, label_counter));
-            
+            instrs.push(compile_expr(
+                e2,
+                env,
+                stack_offset + WORD_SIZE,
+                break_target,
+                label_counter,
+            ));
+
             // Perform operation
             match op {
                 BinOp::Plus | BinOp::Minus | BinOp::Times => {
@@ -618,6 +696,13 @@ fn compile_expr(
 
             instrs.join("\n  ")
         }
+
+        Expr::Call(name, _args) => {
+            panic!(
+                "Function calls not implemented yet: attempted to call {}",
+                name
+            );
+        }
     }
 }
 
@@ -637,7 +722,7 @@ fn install_compiler_error_hook() {
 
 fn try_main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
-    
+
     if args.len() != 3 {
         eprintln!("Usage: {} <input.snek> <output.s>", args[0]);
         std::process::exit(1);
@@ -684,7 +769,7 @@ fn main() {
 }
 
 // ============= TESTS (Optional but recommended) =============
-// 
+//
 // Uncomment and run with: cargo test
 //
 // #[cfg(test)]
